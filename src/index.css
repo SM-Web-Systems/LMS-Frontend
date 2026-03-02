@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* SM Web Systems brand tokens (smwebsystems.com) */
+:root {
+  --primary-dark: #1b3a4b;
+  --primary-medium: #2d5a6b;
+  --primary-light: #4a7c8c;
+  --accent-teal: #3d7a8c;
+  --accent-hover: #2d6a7c;
+  --neutral-50: #f8fafb;
+  --neutral-100: #f1f5f7;
+  --neutral-200: #e5eaed;
+  --neutral-300: #d1d9dd;
+  --neutral-400: #9ba8ae;
+  --neutral-500: #6b7b82;
+  --neutral-600: #4a5a62;
+  --neutral-700: #374952;
+  --neutral-800: #1f2e35;
+  --neutral-900: #0f1a1f;
+  --text-primary: #1f2e35;
+  --text-secondary: #4a5a62;
+  --text-muted: #9ba8ae;
+  --border-light: #e5eaed;
+  --border-medium: #d1d9dd;
+  --font-geist-sans: system-ui, -apple-system, sans-serif;
+  --font-geist-mono: ui-monospace, monospace;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-geist-sans);
+    line-height: 1.5;
+    font-weight: 400;
+    color-scheme: light;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    display: flex;
+    min-width: 320px;
+    min-height: 100vh;
+    background-color: var(--neutral-50);
+    color: var(--text-primary);
+  }
+
+  #root {
+    width: 100%;
+    min-height: 100vh;
+  }
+}
+
