@@ -13,14 +13,43 @@ const StudentQuizzes: React.FC = () => {
   const { user } = useAuth();
   const userId = user?.id ?? '';
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [completions, setCompletions] = useState<Record<string, QuizCompletion | null>>({});
   const [view, setView] = useState<View>('list');
   const [currentQuiz, setCurrentQuiz] = useState<Quiz | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [lastResult, setLastResult] = useState<QuizCompletion | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setQuizzes(quizService.getAll());
+    if (!userId) return;
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const list = await quizService.getAll();
+        if (cancelled) return;
+        setQuizzes(list);
+
+        const comps: Record<string, QuizCompletion | null> = {};
+        await Promise.all(
+          list.map(async (q) => {
+            try {
+              comps[q.id] = await quizService.getCompletion(q.id, userId);
+            } catch {
+              comps[q.id] = null;
+            }
+          })
+        );
+        if (!cancelled) setCompletions(comps);
+      } catch {
+        if (!cancelled) setQuizzes([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
   }, [userId]);
 
   const startQuiz = (quiz: Quiz) => {
@@ -34,12 +63,13 @@ const StudentQuizzes: React.FC = () => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   };
 
-  const submitQuiz = () => {
+  const submitQuiz = async () => {
     if (!currentQuiz || !userId) return;
     setSubmitting(true);
     try {
-      const result = quizService.submitQuiz(currentQuiz.id, userId, answers);
+      const result = await quizService.submitQuiz(currentQuiz.id, userId, answers);
       setLastResult(result);
+      setCompletions((prev) => ({ ...prev, [currentQuiz.id]: result }));
       setView('result');
     } finally {
       setSubmitting(false);
@@ -146,7 +176,6 @@ const StudentQuizzes: React.FC = () => {
                 : 'You did not reach the passing score. You can retake the quiz from the Quizzes list.'}
             </p>
 
-            {/* Payment placeholder */}
             <div className="border border-neutral-200 rounded-lg p-6 bg-neutral-50">
               <div className="flex items-center gap-2 mb-2">
                 <CreditCard className="h-5 w-5 text-neutral-600" />
@@ -182,12 +211,16 @@ const StudentQuizzes: React.FC = () => {
         </div>
       </div>
 
-      {quizzes.length === 0 ? (
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-neutral-400" />
+        </div>
+      ) : quizzes.length === 0 ? (
         <p className="text-neutral-600">No quizzes available yet. Check back later.</p>
       ) : (
         <div className="space-y-4">
           {quizzes.map((quiz) => {
-            const completion = quizService.getCompletion(quiz.id, userId);
+            const completion = completions[quiz.id] ?? null;
             return (
               <Card key={quiz.id}>
                 <CardContent className="p-4 flex items-center justify-between flex-wrap gap-3">

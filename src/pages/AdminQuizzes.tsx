@@ -35,8 +35,15 @@ const AdminQuizzes: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
-    setQuizzes(quizService.getAll());
-    courseService.fetchCourses().then(setCourses).catch(() => setCourses(courseService.getAll()));
+    const load = async () => {
+      const [quizList, courseList] = await Promise.all([
+        quizService.getAll(),
+        courseService.fetchCourses().catch(() => []),
+      ]);
+      setQuizzes(quizList);
+      setCourses(courseList);
+    };
+    load();
   }, []);
 
   const startNew = () => {
@@ -119,7 +126,7 @@ const AdminQuizzes: React.FC = () => {
     );
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim()) return;
     setSaving(true);
     try {
@@ -144,10 +151,11 @@ const AdminQuizzes: React.FC = () => {
           }
           return base;
         }),
-        createdAt: editingId ? (quizService.getById(editingId)?.createdAt || new Date().toISOString()) : new Date().toISOString(),
+        createdAt: editingId ? (quizzes.find((q) => q.id === editingId)?.createdAt ?? new Date().toISOString()) : new Date().toISOString(),
       };
-      quizService.save(quiz);
-      setQuizzes(quizService.getAll());
+      await quizService.save(quiz);
+      const list = await quizService.getAll();
+      setQuizzes(list);
       setShowForm(false);
       startNew();
     } finally {
@@ -155,10 +163,11 @@ const AdminQuizzes: React.FC = () => {
     }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm('Delete this quiz? This cannot be undone.')) {
-      quizService.delete(id);
-      setQuizzes(quizService.getAll());
+      await quizService.delete(id);
+      const list = await quizService.getAll();
+      setQuizzes(list);
     }
   };
 

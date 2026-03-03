@@ -27,10 +27,11 @@ const Forum: React.FC = () => {
   const [newBody, setNewBody] = useState('');
   const [replyBody, setReplyBody] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [postsLoading, setPostsLoading] = useState(false);
 
-  const loadTopics = useCallback(() => {
+  const loadTopics = useCallback(async () => {
     try {
-      const list = forumService.getTopics();
+      const list = await forumService.getTopics();
       setTopics(Array.isArray(list) ? list : []);
     } catch {
       setTopics([]);
@@ -38,16 +39,34 @@ const Forum: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
-    loadTopics();
-    setLoading(false);
+    loadTopics().finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
   }, [loadTopics]);
 
   useEffect(() => {
-    if (selectedTopic) {
-      setPosts(forumService.getPosts(selectedTopic.id));
-      setReplyBody('');
-    }
+    if (!selectedTopic) return;
+    setReplyBody('');
+    let cancelled = false;
+    setPostsLoading(true);
+    setPosts([]);
+    forumService
+      .getPosts(selectedTopic.id)
+      .then((list) => {
+        if (!cancelled) {
+          setPosts(Array.isArray(list) ? list : []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPosts([]);
+      })
+      .finally(() => {
+        if (!cancelled) setPostsLoading(false);
+      });
+    return () => { cancelled = true; };
   }, [selectedTopic]);
 
   const handleCreateTopic = async (e: React.FormEvent) => {
@@ -55,11 +74,13 @@ const Forum: React.FC = () => {
     if (!user || !newTitle.trim() || !newBody.trim()) return;
     setSubmitting(true);
     try {
-      forumService.createTopic(user, { title: newTitle.trim(), body: newBody.trim() });
+      await forumService.createTopic(user, { title: newTitle.trim(), body: newBody.trim() });
       setNewTitle('');
       setNewBody('');
       setShowNewTopic(false);
-      loadTopics();
+      await loadTopics();
+    } catch {
+      // Error handled by service / could show toast
     } finally {
       setSubmitting(false);
     }
@@ -70,11 +91,17 @@ const Forum: React.FC = () => {
     if (!user || !selectedTopic || !replyBody.trim()) return;
     setSubmitting(true);
     try {
-      forumService.createPost(user, selectedTopic.id, { body: replyBody.trim() });
+      await forumService.createPost(user, selectedTopic.id, { body: replyBody.trim() });
       setReplyBody('');
-      setPosts(forumService.getPosts(selectedTopic.id));
-      loadTopics(); // refresh topic list (post count, lastPostAt)
-      setSelectedTopic(forumService.getTopic(selectedTopic.id) ?? selectedTopic);
+      const [updatedPosts, updatedTopic] = await Promise.all([
+        forumService.getPosts(selectedTopic.id),
+        forumService.getTopic(selectedTopic.id),
+      ]);
+      setPosts(Array.isArray(updatedPosts) ? updatedPosts : []);
+      setSelectedTopic(updatedTopic ?? selectedTopic);
+      await loadTopics(); // refresh topic list (post count, lastPostAt)
+    } catch {
+      // Error handled by service / could show toast
     } finally {
       setSubmitting(false);
     }
@@ -82,7 +109,7 @@ const Forum: React.FC = () => {
 
   const openTopic = (topic: ForumTopic) => {
     setSelectedTopic(topic);
-    setPosts(forumService.getPosts(topic.id));
+    // Posts are loaded by the useEffect when selectedTopic changes
   };
 
   const backToList = () => {
@@ -112,6 +139,11 @@ const Forum: React.FC = () => {
         <h2 className="text-lg font-semibold text-neutral-800 mb-3">
           Replies ({posts.length})
         </h2>
+        {postsLoading ? (
+          <div className="flex items-center justify-center py-12 mb-8">
+            <Loader2 className="h-8 w-8 animate-spin text-neutral-400" />
+          </div>
+        ) : (
         <div className="space-y-4 mb-8">
           {posts.map((post) => (
             <Card key={post.id}>
@@ -122,6 +154,7 @@ const Forum: React.FC = () => {
             </Card>
           ))}
         </div>
+        )}
 
         <Card>
           <CardContent className="p-4">

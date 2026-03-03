@@ -3,10 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { courseService } from '../services/courseService';
 import { userDirectoryService } from '../services/userDirectoryService';
-import { studentsService } from '../services/studentsService';
-import { usersService } from '../services/usersService';
+import { usersService, UserDirectoryItem } from '../services/usersService';
 import type { Course } from '../types/course';
-import type { Student } from '../types/api';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
@@ -23,7 +21,7 @@ const CourseMembers: React.FC = () => {
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [membersByCourseId, setMembersByCourseId] = useState<Record<string, Member[]>>({});
-  const [students, setStudents] = useState<Student[]>([]);
+  const [allUsers, setAllUsers] = useState<UserDirectoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [managingCourseId, setManagingCourseId] = useState<string | null>(null);
   const [editingCodesForId, setEditingCodesForId] = useState<string | null>(null);
@@ -55,6 +53,7 @@ const CourseMembers: React.FC = () => {
     if (!isAdmin) return;
     try {
       const users = await usersService.getUsers();
+      setAllUsers(users);
       users.forEach((u) => userDirectoryService.add({
         id: u.id,
         name: u.name,
@@ -63,7 +62,7 @@ const CourseMembers: React.FC = () => {
         courseCodes: u.courseCodes,
       }));
     } catch {
-      // ignore
+      setAllUsers([]);
     }
   }, [isAdmin]);
 
@@ -79,7 +78,6 @@ const CourseMembers: React.FC = () => {
   useEffect(() => {
     if (isAdmin) {
       loadUsers();
-      studentsService.getAll({ limit: 500 }).then((r) => setStudents(r.students)).catch(() => setStudents([]));
     }
   }, [isAdmin, loadUsers]);
 
@@ -91,8 +89,8 @@ const CourseMembers: React.FC = () => {
     return (membersByCourseId[courseId] ?? []).sort((a, b) => a.name.localeCompare(b.name));
   };
 
-  const openEditCodes = (memberId: string, memberName: string) => {
-    const dirUser = userDirectoryService.get(memberId);
+  const openEditCodes = async (memberId: string, memberName: string) => {
+    const dirUser = await userDirectoryService.get(memberId);
     setEditingCodesForId(memberId);
     setEditingCodesName(memberName);
     setDraftCourseCodes(dirUser?.courseCodes ?? []);
@@ -119,10 +117,9 @@ const CourseMembers: React.FC = () => {
     );
   };
 
-  const addMemberToCourse = async (courseId: string, student: Student) => {
-    const id = student.userId || student.id;
+  const addMemberToCourse = async (courseId: string, userItem: UserDirectoryItem) => {
     try {
-      await courseService.addCourseMember(courseId, id);
+      await courseService.addCourseMember(courseId, userItem.id);
       await loadMembersForCourse(courseId);
       await loadUsers();
       setManagingCourseId(null);
@@ -173,10 +170,7 @@ const CourseMembers: React.FC = () => {
             const members = getMembersForCourse(course.id);
             const isManaging = managingCourseId === course.id;
             const memberIds = new Set(members.map((m) => m.id));
-            const availableStudents = students.filter((s) => {
-              const uid = s.userId || s.id;
-              return uid && !memberIds.has(uid);
-            });
+            const availableUsers = allUsers.filter((u) => !memberIds.has(u.id));
 
             return (
               <Card key={course.id}>
@@ -198,19 +192,19 @@ const CourseMembers: React.FC = () => {
                       </Button>
                     )}
                   </div>
-                  {isManaging && availableStudents.length > 0 && (
+                  {isManaging && availableUsers.length > 0 && (
                     <div className="mb-4 p-3 bg-neutral-50 rounded-lg">
                       <p className="text-sm font-medium text-neutral-700 mb-2">Add to course</p>
                       <div className="flex flex-wrap gap-2">
-                        {availableStudents.map((s) => (
+                        {availableUsers.map((u) => (
                           <Button
-                            key={s.id}
+                            key={u.id}
                             variant="outline"
                             size="sm"
-                            onClick={() => addMemberToCourse(course.id, s)}
+                            onClick={() => addMemberToCourse(course.id, u)}
                           >
                             <Plus className="h-3 w-3 mr-1" />
-                            {s.name}
+                            {u.name} <span className="ml-1 text-xs text-neutral-400">({u.role})</span>
                           </Button>
                         ))}
                       </div>

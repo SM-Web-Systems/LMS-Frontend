@@ -8,6 +8,7 @@ import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import Input, { TextArea } from '../components/Input';
 import { User, CheckCircle, Loader2, ArrowLeft, MessageCircle } from 'lucide-react';
+import type { QuizCompletion } from '../types/quiz';
 
 const Profile: React.FC = () => {
   const { userId: routeUserId } = useParams<{ userId?: string }>();
@@ -19,6 +20,7 @@ const Profile: React.FC = () => {
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [completionsWithTitles, setCompletionsWithTitles] = useState<(QuizCompletion & { quizTitle: string })[]>([]);
 
   useEffect(() => {
     if (user?.name && !isViewingOther) setName(user.name);
@@ -26,25 +28,28 @@ const Profile: React.FC = () => {
 
   useEffect(() => {
     const id = isViewingOther ? routeUserId! : user?.id;
-    if (id) {
-      const profile = profileService.get(id);
+    if (!id) return;
+    const load = async () => {
+      const profile = await profileService.get(id);
       setDescription(profile.description ?? '');
-      if (profile.displayName) setName(profile.displayName);
-      else if (isViewingOther) {
-        const dirUser = userDirectoryService.get(id);
+      if (profile.displayName) {
+        setName(profile.displayName);
+      } else if (isViewingOther) {
+        const dirUser = await userDirectoryService.get(id);
         if (dirUser) setName(dirUser.name);
       }
-    }
+    };
+    load();
   }, [user?.id, routeUserId, isViewingOther]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!user || isViewingOther) return;
     setSaving(true);
     setSaved(false);
     try {
       const updatedUser = { ...user, name: name.trim() || user.name };
       updateUser(updatedUser);
-      profileService.save(user.id, {
+      await profileService.save(user.id, {
         displayName: name.trim() || undefined,
         description: description.trim() || undefined,
       });
@@ -56,11 +61,25 @@ const Profile: React.FC = () => {
   };
 
   const profileUserId = isViewingOther ? routeUserId! : user?.id;
-  const completions = profileUserId ? quizService.getCompletionsForUser(profileUserId).filter((c) => c.passed) : [];
-  const completionsWithTitles = completions.map((c) => ({
-    ...c,
-    quizTitle: quizService.getById(c.quizId)?.title ?? 'Quiz',
-  })).sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+  useEffect(() => {
+    if (!profileUserId) {
+      setCompletionsWithTitles([]);
+      return;
+    }
+    const load = async () => {
+      const completions = await quizService.getCompletionsForUser(profileUserId);
+      const passed = completions.filter((c) => c.passed);
+      const withTitles = await Promise.all(
+        passed.map(async (c) => {
+          const quiz = await quizService.getById(c.quizId);
+          return { ...c, quizTitle: quiz?.title ?? 'Quiz' };
+        })
+      );
+      withTitles.sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+      setCompletionsWithTitles(withTitles);
+    };
+    load();
+  }, [profileUserId]);
 
   if (!user) {
     return (
@@ -70,7 +89,7 @@ const Profile: React.FC = () => {
     );
   }
 
-  const displayName = isViewingOther ? (userDirectoryService.get(routeUserId!)?.name ?? name) : (name || user.name);
+  const displayName = isViewingOther ? name : (name || user.name);
   const basePath = user.role === 'admin' ? '/admin' : '/student';
 
   return (

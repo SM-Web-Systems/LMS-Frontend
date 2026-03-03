@@ -1,36 +1,22 @@
-/**
- * Profile: extended user info (description, etc.). Uses localStorage; replace with API when backend is ready.
- */
+import api from './api';
 
 export interface UserProfile {
   displayName?: string;
   description?: string;
 }
 
-const STORAGE_KEY = 'lms_profiles';
-
-function loadAll(): Record<string, UserProfile> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    return JSON.parse(raw);
-  } catch {
-    return {};
-  }
-}
-
-function saveAll(profiles: Record<string, UserProfile>) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
-}
-
 export const profileService = {
-  get(userId: string): UserProfile {
-    return loadAll()[userId] ?? {};
+  async get(userId: string): Promise<UserProfile> {
+    try {
+      const res = await api.get<{ success: boolean; data: { displayName?: string; description?: string } }>(`/users/${userId}`);
+      const d = res.data?.data;
+      return { displayName: d?.displayName ?? undefined, description: d?.description ?? undefined };
+    } catch {
+      return {};
+    }
   },
 
-  save(userId: string, profile: UserProfile): void {
-    const all = loadAll();
-    all[userId] = { ...all[userId], ...profile };
-    saveAll(all);
+  async save(userId: string, profile: UserProfile): Promise<void> {
+    await api.patch(`/users/${userId}`, profile);
   },
 };

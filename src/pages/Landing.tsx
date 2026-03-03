@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { GraduationCap, BookOpen, FileText, MessageCircle, ClipboardList, Target, ArrowRight } from 'lucide-react';
+import { BookOpen, FileText, MessageCircle, ClipboardList, Target, ArrowRight } from 'lucide-react';
 
 const Landing: React.FC = () => {
   const features = [
@@ -44,9 +44,7 @@ const Landing: React.FC = () => {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <Link to="/" className="flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-accent-teal focus:ring-offset-2 rounded-lg">
-              <div className="w-10 h-10 rounded-lg bg-primary-dark flex items-center justify-center shrink-0">
-                <GraduationCap className="w-6 h-6 text-white" />
-              </div>
+              <img src="/logo.png" alt="SM Web Systems" className="w-10 h-10 shrink-0" />
               <div>
                 <span className="text-xl font-bold text-primary-dark block leading-tight">SM Web Systems</span>
                 <span className="text-xs text-neutral-500 hidden sm:block">Learning Management System</span>
@@ -160,7 +158,7 @@ const Landing: React.FC = () => {
       <footer className="py-8 px-4 bg-primary-dark text-white/80">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2">
-            <GraduationCap className="w-5 h-5 text-white/90" />
+            <img src="/logo.png" alt="SM Web Systems" className="w-6 h-6 brightness-0 invert opacity-90" />
             <span className="font-semibold text-white">SM Web Systems</span>
           </div>
           <p className="text-sm text-white/70">

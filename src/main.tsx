@@ -1,16 +1,22 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { GoogleOAuthProvider } from '@react-oauth/google'
+import { ClerkProvider } from '@clerk/clerk-react'
 import App from './App.tsx'
 import './index.css'
 
-const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
+
+if (!clerkPubKey) {
+  throw new Error(
+    'Missing VITE_CLERK_PUBLISHABLE_KEY – add it to your .env file.\n' +
+    'Get it from https://dashboard.clerk.com → API Keys.'
+  )
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <GoogleOAuthProvider clientId={googleClientId}>
+    <ClerkProvider publishableKey={clerkPubKey}>
       <App />
-    </GoogleOAuthProvider>
+    </ClerkProvider>
   </React.StrictMode>,
 )
-

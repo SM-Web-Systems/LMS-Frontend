@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { getAuthToken } from '../services/api';
 import { documentsService } from '../services/documentsService';
 import { Loader2 } from 'lucide-react';
 
 interface PdfViewerProps {
   title: string;
-  /** URL to the PDF (e.g. direct link). For LMS documents use PdfViewerWithAuth. */
   src: string;
   className?: string;
 }
 
-/** Scrollable in-page PDF viewer. Use for "PDF docs scroll to view". */
 export const PdfViewer: React.FC<PdfViewerProps> = ({ title, src, className = '' }) => {
   return (
     <div className={`rounded-lg border border-neutral-200 bg-neutral-50 overflow-hidden ${className}`}>
@@ -33,28 +32,31 @@ interface PdfViewerWithAuthProps {
   className?: string;
 }
 
-/** Fetches PDF from LMS API with Bearer token and displays in scrollable viewer. */
 export const PdfViewerWithAuth: React.FC<PdfViewerWithAuthProps> = ({ documentId, title, className = '' }) => {
   const [src, setSrc] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let objectUrl: string | null = null;
-    const token = localStorage.getItem('token');
-    const url = documentsService.getDownloadUrl(documentId);
-    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const token = await getAuthToken();
+        const url = documentsService.getDownloadUrl(documentId);
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) throw new Error('Failed to load PDF');
-        return res.blob();
-      })
-      .then((blob) => {
+        const blob = await res.blob();
+        if (cancelled) return;
         objectUrl = URL.createObjectURL(blob);
         setSrc(objectUrl);
-      })
-      .catch(() => setError('Could not load document'))
-      .finally(() => {});
+      } catch {
+        if (!cancelled) setError('Could not load document');
+      }
+    })();
 
     return () => {
+      cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [documentId]);

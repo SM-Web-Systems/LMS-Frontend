@@ -1,14 +1,13 @@
-import React, { createContext, useState, useEffect, ReactNode } from 'react';
-import { authService } from '../services/authService';
-import { userDirectoryService } from '../services/userDirectoryService';
+import React, { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { useAuth as useClerkAuth, useUser as useClerkUser } from '@clerk/clerk-react';
+import { setTokenGetter } from '../services/api';
 import { User } from '../types/api';
+import api from '../services/api';
 
 export interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
-  loginWithGoogle: (idToken: string) => Promise<boolean>;
   logout: () => Promise<void>;
   updateUser: (user: User) => void;
 }
@@ -16,102 +15,64 @@ export interface AuthContextType {
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { isLoaded, isSignedIn, getToken, signOut } = useClerkAuth();
+  const { user: clerkUser } = useClerkUser();
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
-    const storedUser = authService.getStoredUser();
-    if (storedUser && authService.isAuthenticated()) {
-      userDirectoryService.add({
-        id: storedUser.id,
-        name: storedUser.name,
-        email: storedUser.email,
-        role: storedUser.role,
-        courseCodes: storedUser.courseCodes,
-      });
-      setUser(storedUser);
-      authService.getMe()
-        .then((u) => {
-          userDirectoryService.add({
-            id: u.id,
-            name: u.name,
-            email: u.email,
-            role: u.role,
-            courseCodes: u.courseCodes,
-          });
-          setUser(u);
-        })
-        .catch(() => {
-          authService.logout();
-          setUser(null);
-        })
-        .finally(() => setIsLoading(false));
-    } else {
-      setIsLoading(false);
-    }
-  }, []);
+    setTokenGetter(getToken);
+  }, [getToken]);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
-    try {
-      const { user } = await authService.login(email, password);
-      userDirectoryService.add({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        courseCodes: user.courseCodes,
-      });
-      setUser(user);
-      return true;
-    } catch (error) {
-      console.error('Login error:', error);
-      return false;
-    }
-  };
+  useEffect(() => {
+    if (!isLoaded) return;
 
-  const loginWithGoogle = async (idToken: string): Promise<boolean> => {
-    try {
-      const { user } = await authService.loginWithGoogle(idToken);
-      userDirectoryService.add({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        courseCodes: user.courseCodes,
-      });
-      setUser(user);
-      return true;
-    } catch (error) {
-      console.error('Google login error:', error);
-      return false;
+    if (!isSignedIn) {
+      setUser(null);
+      setIsSyncing(false);
+      return;
     }
-  };
 
-  const logout = async () => {
-    await authService.logout();
+    let cancelled = false;
+
+    const fetchUser = async () => {
+      setIsSyncing(true);
+      try {
+        const token = await getToken();
+        if (!token || cancelled) return;
+
+        const response = await api.get('/auth/me');
+        if (!cancelled && response.data.success && response.data.data) {
+          setUser(response.data.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch user profile:', err);
+        if (!cancelled) setUser(null);
+      } finally {
+        if (!cancelled) setIsSyncing(false);
+      }
+    };
+
+    fetchUser();
+
+    return () => { cancelled = true; };
+  }, [isLoaded, isSignedIn, clerkUser, getToken]);
+
+  const logout = useCallback(async () => {
+    await signOut();
     setUser(null);
-  };
+  }, [signOut]);
 
-  const updateUser = (updated: User) => {
+  const updateUser = useCallback((updated: User) => {
     setUser(updated);
-    authService.updateStoredUser(updated);
-    userDirectoryService.add({
-      id: updated.id,
-      name: updated.name,
-      email: updated.email,
-      role: updated.role,
-      courseCodes: updated.courseCodes,
-    });
-  };
+  }, []);
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        isAuthenticated: !!user,
-        isLoading,
-        login,
-        loginWithGoogle,
+        isAuthenticated: !!user && !!isSignedIn,
+        isLoading: !isLoaded || isSyncing,
         logout,
         updateUser,
       }}

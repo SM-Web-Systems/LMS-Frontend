@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
-import { LogOut, Users, FileText, LayoutDashboard, BookOpen, GraduationCap, MessageCircle, ClipboardList, Mail, User, UserCircle } from 'lucide-react';
+import { LogOut, Users, FileText, LayoutDashboard, BookOpen, MessageCircle, ClipboardList, Mail, User, UserCircle } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -24,7 +24,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         { name: 'Dashboard', path: '/admin', icon: LayoutDashboard },
         { name: 'Students', path: '/admin/students', icon: Users },
         { name: 'Submissions', path: '/admin/submissions', icon: FileText },
-        { name: 'Course', path: '/admin/course', icon: GraduationCap },
+        { name: 'Course', path: '/admin/course', icon: BookOpen },
         { name: 'Quizzes', path: '/admin/quizzes', icon: ClipboardList },
         { name: 'Resources', path: '/admin/documents', icon: BookOpen },
         { name: 'Forum', path: '/admin/forum', icon: MessageCircle },
@@ -35,7 +35,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     : [
         { name: 'Dashboard', path: '/student', icon: LayoutDashboard },
         { name: 'My Submissions', path: '/student/submissions', icon: FileText },
-        { name: 'Course', path: '/student/course', icon: GraduationCap },
+        { name: 'Course', path: '/student/course', icon: BookOpen },
         { name: 'Quizzes', path: '/student/quizzes', icon: ClipboardList },
         { name: 'Resources', path: '/student/documents', icon: BookOpen },
         { name: 'Forum', path: '/student/forum', icon: MessageCircle },
@@ -50,11 +50,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <header className="bg-white shadow-sm border-b border-neutral-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-primary-dark">SM Web Systems</h1>
-              <span className="ml-3 text-sm text-neutral-500 hidden sm:block">
-                Learning Management System
-              </span>
+            <div className="flex items-center gap-3">
+              <img src="/logo.png" alt="SM Web Systems" className="h-9 w-9" />
+              <div>
+                <h1 className="text-xl font-bold text-primary-dark leading-tight">SM Web Systems</h1>
+                <span className="text-xs text-neutral-500 hidden sm:block">Learning Management System</span>
+              </div>
             </div>
             <div className="flex items-center space-x-4">
               <div className="text-right">

@@ -1,4 +1,4 @@
-import api from './api';
+import api, { getAuthToken } from './api';
 import {
   ApiResponse,
   CourseDocument,
@@ -80,7 +80,7 @@ export const documentsService = {
   },
 
   async download(id: string): Promise<void> {
-    const token = localStorage.getItem('token');
+    const token = await getAuthToken();
     const response = await fetch(this.getDownloadUrl(id), {
       headers: {
         Authorization: `Bearer ${token}`,

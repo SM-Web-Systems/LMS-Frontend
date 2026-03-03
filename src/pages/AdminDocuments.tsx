@@ -139,7 +139,7 @@ const AdminDocuments: React.FC = () => {
   }, [fetchCategories]);
 
   useEffect(() => {
-    courseService.fetchCourses().then(setCourses).catch(() => setCourses(courseService.getAll()));
+    courseService.fetchCourses().then(setCourses).catch(() => setCourses([]));
   }, []);
 
   useEffect(() => {

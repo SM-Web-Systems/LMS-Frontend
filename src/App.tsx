@@ -5,6 +5,7 @@ import { useAuth } from './context/useAuth';
 import { DataProvider } from './context/DataContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import SignUp from './pages/SignUp';
 import Landing from './pages/Landing';
 import Messages from './pages/Messages';
 import Profile from './pages/Profile';
@@ -67,7 +68,7 @@ const HomeRoute: React.FC = () => {
     return <LoadingScreen />;
   }
   if (isAuthenticated && user) {
-    return null; // redirecting
+    return null;
   }
   return <Landing />;
 };
@@ -86,13 +87,28 @@ const LoginRoute: React.FC = () => {
   return <Login />;
 };
 
+const SignUpRoute: React.FC = () => {
+  const { isAuthenticated, user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  if (isAuthenticated && user) {
+    return <Navigate to={user.role === 'admin' ? '/admin' : '/student'} replace />;
+  }
+
+  return <SignUp />;
+};
+
 function App() {
   return (
     <Router>
       <AuthProvider>
         <DataProvider>
           <Routes>
-            <Route path="/login" element={<LoginRoute />} />
+            <Route path="/login/*" element={<LoginRoute />} />
+            <Route path="/sign-up/*" element={<SignUpRoute />} />
             <Route path="/" element={<HomeRoute />} />
 
             {/* Student Routes */}
@@ -309,9 +325,6 @@ function App() {
               }
             />
 
-            {/* Home: landing when not auth, redirect to dashboard when auth */}
-            
-            {/* Catch all - redirect to root */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </DataProvider>

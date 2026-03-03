@@ -24,19 +24,46 @@ const Messages: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessageBody, setNewMessageBody] = useState('');
   const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [openingConversation, setOpeningConversation] = useState(false);
   const [showNewConversation, setShowNewConversation] = useState(false);
   const [peers, setPeers] = useState<{ id: string; name: string }[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!userId) return;
-    setConversations(messageService.getConversationsForUser(userId, isAdmin));
-    setPeers(enrollmentService.getPeersInMyCourses(userId, isAdmin));
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const [convs, peerList] = await Promise.all([
+          messageService.getConversationsForUser(userId, isAdmin),
+          enrollmentService.getPeersInMyCourses(userId, isAdmin),
+        ]);
+        if (!cancelled) {
+          setConversations(convs);
+          setPeers(peerList);
+        }
+      } catch {
+        if (!cancelled) {
+          setConversations([]);
+          setPeers([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [userId, isAdmin]);
 
   useEffect(() => {
-    if (isAdmin) {
-      studentsService.getAll({ limit: 500 }).then((r) => {
+    if (!isAdmin || !userId) return;
+    (async () => {
+      try {
+        const r = await studentsService.getAll({ limit: 500 });
         userDirectoryService.addMany(
           r.students.map((s) => ({
             id: s.userId || s.id,
@@ -45,17 +72,30 @@ const Messages: React.FC = () => {
             role: 'student' as const,
           }))
         );
-        setPeers(enrollmentService.getPeersInMyCourses(userId, true));
-      }).catch(() => {});
-    }
+        const peerList = await enrollmentService.getPeersInMyCourses(userId, true);
+        setPeers(peerList);
+      } catch {
+        // ignore
+      }
+    })();
   }, [isAdmin, userId]);
 
-  const openConversationFromState = (otherUserId: string, otherUserName: string) => {
-    const conv = messageService.getOrCreateConversation(userId, userName, otherUserId, otherUserName);
-    setConversations(messageService.getConversationsForUser(userId, isAdmin));
-    setSelectedConversation(conv);
-    setMessages(messageService.getMessages(conv.id));
-    setShowNewConversation(false);
+  const openConversationFromState = async (otherUserId: string, otherUserName: string) => {
+    if (!userId) return;
+    setOpeningConversation(true);
+    try {
+      const conv = await messageService.getOrCreateConversation(userId, userName, otherUserId, otherUserName);
+      const [convs, msgs] = await Promise.all([
+        messageService.getConversationsForUser(userId, isAdmin),
+        messageService.getMessages(conv.id),
+      ]);
+      setConversations(convs);
+      setSelectedConversation(conv);
+      setMessages(msgs);
+      setShowNewConversation(false);
+    } finally {
+      setOpeningConversation(false);
+    }
   };
 
   useEffect(() => {
@@ -71,15 +111,30 @@ const Messages: React.FC = () => {
       setMessages([]);
       return;
     }
-    setMessages(messageService.getMessages(selectedConversation.id));
+    let cancelled = false;
+    (async () => {
+      try {
+        const msgs = await messageService.getMessages(selectedConversation.id);
+        if (!cancelled) setMessages(msgs);
+      } catch {
+        if (!cancelled) setMessages([]);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [selectedConversation]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const refreshConversations = () => {
-    if (userId) setConversations(messageService.getConversationsForUser(userId, isAdmin));
+  const refreshConversations = async () => {
+    if (!userId) return;
+    try {
+      const convs = await messageService.getConversationsForUser(userId, isAdmin);
+      setConversations(convs);
+    } catch {
+      // ignore
+    }
   };
 
   const openConversation = (conv: Conversation) => {
@@ -91,15 +146,16 @@ const Messages: React.FC = () => {
     openConversationFromState(otherUserId, otherUserName);
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const body = newMessageBody.trim();
     if (!body || !selectedConversation || !userId) return;
     setSending(true);
     try {
-      messageService.sendMessage(selectedConversation.id, userId, body);
-      setMessages(messageService.getMessages(selectedConversation.id));
+      await messageService.sendMessage(selectedConversation.id, userId, body);
+      const msgs = await messageService.getMessages(selectedConversation.id);
+      setMessages(msgs);
       setNewMessageBody('');
-      refreshConversations();
+      await refreshConversations();
     } finally {
       setSending(false);
     }
@@ -151,7 +207,9 @@ const Messages: React.FC = () => {
                   Back
                 </Button>
                 <p className="text-sm font-medium text-neutral-700 mb-2">People in your course(s)</p>
-                {peers.length === 0 ? (
+                {loading ? (
+                  <p className="text-sm text-neutral-500">Loading...</p>
+                ) : peers.length === 0 ? (
                   <p className="text-sm text-neutral-500">
                     No one else in your courses yet. Ask your admin to add you to a course, or to add others so you can message them.
                   </p>
@@ -160,7 +218,8 @@ const Messages: React.FC = () => {
                     <button
                       key={p.id}
                       onClick={() => startConversationWith(p.id, p.name)}
-                      className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-neutral-50 text-left"
+                      disabled={openingConversation}
+                      className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-neutral-50 text-left disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <User className="h-4 w-4 text-neutral-400 shrink-0" />
                       <span className="text-neutral-800 truncate">{p.name}</span>
@@ -177,7 +236,9 @@ const Messages: React.FC = () => {
                   </Button>
                 </div>
                 <div className="max-h-[400px] overflow-y-auto">
-                  {conversations.length === 0 ? (
+                  {loading ? (
+                    <p className="p-4 text-sm text-neutral-500">Loading...</p>
+                  ) : conversations.length === 0 ? (
                     <p className="p-4 text-sm text-neutral-500">No conversations yet. Start one above.</p>
                   ) : (
                     conversations.map((conv) => {
@@ -267,7 +328,7 @@ const Messages: React.FC = () => {
             <Card className="h-[500px] flex items-center justify-center">
               <CardContent className="text-center text-neutral-500">
                 <MessageCircle className="h-12 w-12 mx-auto mb-3 text-neutral-300" />
-                <p>Select a conversation or start a new one.</p>
+                <p>{openingConversation ? 'Opening conversation...' : 'Select a conversation or start a new one.'}</p>
               </CardContent>
             </Card>
           )}

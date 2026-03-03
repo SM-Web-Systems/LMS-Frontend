@@ -72,7 +72,7 @@ const StudentDocuments: React.FC = () => {
       if (selectedCategory) params.category = selectedCategory;
 
       const response = await documentsService.getAll(params);
-      const accessibleCourseIds = enrollmentService.getAccessibleCourseIds(userId);
+      const accessibleCourseIds = await enrollmentService.getAccessibleCourseIds(userId);
       const visible = response.documents.filter((doc) =>
         resourceAccessService.canAccess(doc.id, accessibleCourseIds)
       );
