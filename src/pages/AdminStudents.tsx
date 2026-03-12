@@ -34,6 +34,7 @@ const AdminStudents: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [courses, setCourses] = useState<Awaited<ReturnType<typeof courseService.fetchCourses>>>([]);
+  const [courseCodesMap, setCourseCodesMap] = useState<Record<string, string[]>>({});
 
   const courseCodesWithTitles = useMemo(
     () => courses.filter((c) => c.courseCode).map((c) => ({ code: c.courseCode!, title: c.title })),
@@ -47,13 +48,11 @@ const AdminStudents: React.FC = () => {
   useEffect(() => {
     courseService.fetchCourses().then(setCourses).catch(() => setCourses([]));
     usersService.getUsers().then((users) => {
-      users.forEach((u) => userDirectoryService.add({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        role: u.role,
-        courseCodes: u.courseCodes,
-      }));
+      const map: Record<string, string[]> = {};
+      users.forEach((u) => {
+        map[u.id] = u.courseCodes ?? [];
+      });
+      setCourseCodesMap(map);
     }).catch(() => {});
   }, []);
 
@@ -77,8 +76,7 @@ const AdminStudents: React.FC = () => {
         department: student.department,
         semester: student.semester,
       });
-      const dirUser = userDirectoryService.get(student.userId || student.id);
-      setSelectedCourseCodes(dirUser?.courseCodes ?? []);
+      setSelectedCourseCodes(courseCodesMap[student.userId || student.id] ?? []);
     } else {
       setEditingStudent(null);
       setFormData({
@@ -246,9 +244,9 @@ const AdminStudents: React.FC = () => {
                         Semester {student.semester}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
-                        {(userDirectoryService.get(student.userId || student.id)?.courseCodes ?? []).length === 0
+                        {(courseCodesMap[student.userId || student.id] ?? []).length === 0
                           ? '—'
-                          : (userDirectoryService.get(student.userId || student.id)?.courseCodes ?? []).join(', ')}
+                          : (courseCodesMap[student.userId || student.id] ?? []).join(', ')}
                       </td>
                       <td className="px-6 py-4 text-sm">
                         <div className="flex space-x-2">

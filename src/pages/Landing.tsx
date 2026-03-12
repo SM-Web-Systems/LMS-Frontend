@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { BookOpen, FileText, MessageCircle, ClipboardList, Target, ArrowRight } from 'lucide-react';
+import { HeroBeamBackground } from '../components/HeroBeamBackground';
 
 const Landing: React.FC = () => {
   const features = [
@@ -60,9 +61,10 @@ const Landing: React.FC = () => {
         </div>
       </header>
 
-      {/* Hero — dark gradient, single promise, one CTA */}
-      <section className="bg-gradient-to-br from-primary-dark to-primary-medium text-white py-20 sm:py-24 px-4">
-        <div className="max-w-4xl mx-auto text-center">
+      {/* Hero — beam background (brand colours) + headline & CTA */}
+      <section className="relative min-h-screen flex items-center justify-center text-white overflow-hidden">
+        <HeroBeamBackground />
+        <div className="relative z-20 w-full max-w-4xl mx-auto text-center py-20 sm:py-24 px-4">
           <h1 className="text-4xl sm:text-5xl font-bold mb-6 leading-tight">
             Learning management for teams that build
           </h1>
@@ -87,6 +89,41 @@ const Landing: React.FC = () => {
           <p className="mt-10 text-sm text-white/70 max-w-lg mx-auto">
             Built for teams that ship real products. Clear structure, real feedback, and a path from learning to doing.
           </p>
+        </div>
+      </section>
+
+      {/* Topics & courses — available now + coming soon */}
+      <section className="py-16 sm:py-20 px-4 bg-white border-b border-neutral-200">
+        <div className="max-w-6xl mx-auto">
+          <h2 className="text-3xl sm:text-4xl font-bold text-neutral-800 text-center mb-4">
+            Topics & courses
+          </h2>
+          <p className="text-neutral-600 text-center mb-8 max-w-2xl mx-auto">
+            Blockchain, smart contracts, and trading. More courses coming soon.
+          </p>
+          <div className="flex flex-wrap justify-center gap-3">
+            {[
+              { name: 'Stellar', comingSoon: false },
+              { name: 'Soroban', comingSoon: false },
+              { name: 'Eth crash course', comingSoon: true },
+              { name: 'Blockchain vibe coding', comingSoon: true },
+              { name: 'Solana', comingSoon: true },
+              { name: 'Automated trading', comingSoon: true },
+              { name: 'Rust', comingSoon: true },
+            ].map(({ name, comingSoon }) => (
+              <span
+                key={name}
+                className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium ${
+                  comingSoon
+                    ? 'bg-neutral-100 text-neutral-600 border border-neutral-200'
+                    : 'bg-primary-dark/10 text-primary-dark border border-primary-dark/20'
+                }`}
+              >
+                {name}
+                {comingSoon && <span className="ml-2 text-xs text-neutral-500">Coming soon</span>}
+              </span>
+            ))}
+          </div>
         </div>
       </section>
 
