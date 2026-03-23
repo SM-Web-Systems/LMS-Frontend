@@ -12,9 +12,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const inIframe = typeof window !== 'undefined' && window.parent !== window;
+
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    if (inIframe) {
+      window.location.reload();
+    } else {
+      navigate('/login');
+    }
   };
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');

@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/useAuth';
 import { DataProvider } from './context/DataContext';
 import Layout from './components/Layout';
@@ -104,9 +103,8 @@ const SignUpRoute: React.FC = () => {
 function App() {
   return (
     <Router>
-      <AuthProvider>
-        <DataProvider>
-          <Routes>
+      <DataProvider>
+        <Routes>
             <Route path="/login/*" element={<LoginRoute />} />
             <Route path="/sign-up/*" element={<SignUpRoute />} />
             <Route path="/" element={<HomeRoute />} />
@@ -327,8 +325,7 @@ function App() {
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </DataProvider>
-      </AuthProvider>
+      </DataProvider>
     </Router>
   );
 }

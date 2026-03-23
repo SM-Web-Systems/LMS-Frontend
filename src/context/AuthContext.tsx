@@ -1,6 +1,5 @@
 import React, { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { useAuth as useClerkAuth, useUser as useClerkUser } from '@clerk/clerk-react';
-import { setTokenGetter } from '../services/api';
+import { getWordPressAuthToken, clearWordPressAuthToken } from '../services/api';
 import { User } from '../types/api';
 import api from '../services/api';
 
@@ -14,54 +13,99 @@ export interface AuthContextType {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * Auth provider for the WordPress-embedded LMS.
+ * Authenticates via WordPress JWT (delivered by postMessage) or
+ * backend JWT (from email/password login stored in localStorage).
+ */
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { isLoaded, isSignedIn, getToken, signOut } = useClerkAuth();
-  const { user: clerkUser } = useClerkUser();
   const [user, setUser] = useState<User | null>(null);
-  const [isSyncing, setIsSyncing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
-    setTokenGetter(getToken);
-  }, [getToken]);
+    const onWpAuth = () => setNonce((n) => n + 1);
+    window.addEventListener('lms:wp-auth-updated', onWpAuth);
+    return () => window.removeEventListener('lms:wp-auth-updated', onWpAuth);
+  }, []);
+
+  // In iframe mode, poll briefly for the postMessage token to arrive
+  useEffect(() => {
+    const inIframe = typeof window !== 'undefined' && window.parent !== window;
+    if (!inIframe) return;
+
+    if (getWordPressAuthToken() || localStorage.getItem('token')) {
+      setNonce((n) => n + 1);
+      return;
+    }
+
+    let ticks = 0;
+    const id = window.setInterval(() => {
+      ticks += 1;
+      if (getWordPressAuthToken() || localStorage.getItem('token')) {
+        setNonce((n) => n + 1);
+        window.clearInterval(id);
+      } else if (ticks > 50) {
+        window.clearInterval(id);
+        setIsLoading(false);
+      }
+    }, 100);
+    return () => window.clearInterval(id);
+  }, []);
+
+  // On first mount (non-iframe), check if a token is already in localStorage
+  useEffect(() => {
+    const inIframe = typeof window !== 'undefined' && window.parent !== window;
+    if (inIframe) return;
+
+    const token = localStorage.getItem('token');
+    if (token) {
+      setNonce((n) => n + 1);
+    } else {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (nonce === 0) return;
 
-    if (!isSignedIn) {
+    const hasToken = getWordPressAuthToken() || localStorage.getItem('token');
+    if (!hasToken) {
       setUser(null);
-      setIsSyncing(false);
+      setIsLoading(false);
       return;
     }
 
     let cancelled = false;
+    setIsLoading(true);
 
-    const fetchUser = async () => {
-      setIsSyncing(true);
+    (async () => {
       try {
-        const token = await getToken();
-        if (!token || cancelled) return;
-
-        const response = await api.get('/auth/me');
-        if (!cancelled && response.data.success && response.data.data) {
-          setUser(response.data.data);
+        const res = await api.get('/auth/me');
+        if (!cancelled && res.data.success && res.data.data) {
+          setUser(res.data.data);
         }
       } catch (err) {
         console.error('Failed to fetch user profile:', err);
-        if (!cancelled) setUser(null);
+        if (!cancelled) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('auth_source');
+          setUser(null);
+        }
       } finally {
-        if (!cancelled) setIsSyncing(false);
+        if (!cancelled) setIsLoading(false);
       }
-    };
-
-    fetchUser();
+    })();
 
     return () => { cancelled = true; };
-  }, [isLoaded, isSignedIn, clerkUser, getToken]);
+  }, [nonce]);
 
   const logout = useCallback(async () => {
-    await signOut();
+    clearWordPressAuthToken();
+    localStorage.removeItem('token');
+    localStorage.removeItem('auth_source');
     setUser(null);
-  }, [signOut]);
+  }, []);
 
   const updateUser = useCallback((updated: User) => {
     setUser(updated);
@@ -71,8 +115,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     <AuthContext.Provider
       value={{
         user,
-        isAuthenticated: !!user && !!isSignedIn,
-        isLoading: !isLoaded || isSyncing,
+        isAuthenticated: !!user,
+        isLoading,
         logout,
         updateUser,
       }}
