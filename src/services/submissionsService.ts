@@ -1,4 +1,5 @@
 import api, { getAuthToken } from './api';
+import { ApiRequestError, assertApiOk, assertApiSuccess, messageFromFailedFetchResponse } from '../utils/apiError';
 import {
   ApiResponse,
   Submission,
@@ -18,22 +19,12 @@ export const submissionsService = {
     const response = await api.get<ApiResponse<SubmissionsResponse>>('/submissions', {
       params,
     });
-    
-    if (response.data.success && response.data.data) {
-      return response.data.data;
-    }
-    
-    throw new Error(response.data.error?.message || 'Failed to fetch submissions');
+    return assertApiSuccess(response, 'Could not load submissions.');
   },
 
   async getById(id: string): Promise<Submission> {
     const response = await api.get<ApiResponse<Submission>>(`/submissions/${id}`);
-    
-    if (response.data.success && response.data.data) {
-      return response.data.data;
-    }
-    
-    throw new Error(response.data.error?.message || 'Failed to fetch submission');
+    return assertApiSuccess(response, 'Could not load that submission.');
   },
 
   async create(data: CreateSubmissionData): Promise<Submission> {
@@ -47,30 +38,17 @@ export const submissionsService = {
         'Content-Type': 'multipart/form-data',
       },
     });
-    
-    if (response.data.success && response.data.data) {
-      return response.data.data;
-    }
-    
-    throw new Error(response.data.error?.message || 'Failed to create submission');
+    return assertApiSuccess(response, 'Could not submit your work. Check the file and fields, then try again.');
   },
 
   async update(id: string, data: { title?: string; description?: string }): Promise<Submission> {
     const response = await api.put<ApiResponse<Submission>>(`/submissions/${id}`, data);
-    
-    if (response.data.success && response.data.data) {
-      return response.data.data;
-    }
-    
-    throw new Error(response.data.error?.message || 'Failed to update submission');
+    return assertApiSuccess(response, 'Could not update the submission.');
   },
 
   async delete(id: string): Promise<void> {
     const response = await api.delete<ApiResponse<void>>(`/submissions/${id}`);
-    
-    if (!response.data.success) {
-      throw new Error(response.data.error?.message || 'Failed to delete submission');
-    }
+    assertApiOk(response, 'Could not delete the submission.');
   },
 
   async review(id: string, data: ReviewSubmissionData): Promise<Submission> {
@@ -78,12 +56,7 @@ export const submissionsService = {
       `/submissions/${id}/review`,
       data
     );
-    
-    if (response.data.success && response.data.data) {
-      return response.data.data;
-    }
-    
-    throw new Error(response.data.error?.message || 'Failed to review submission');
+    return assertApiSuccess(response, 'Could not save the review.');
   },
 
   getDownloadUrl(id: string): string {
@@ -100,7 +73,8 @@ export const submissionsService = {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to download file');
+      const msg = await messageFromFailedFetchResponse(response, 'Could not download the file.');
+      throw new ApiRequestError({ message: msg, status: response.status });
     }
 
     const blob = await response.blob();

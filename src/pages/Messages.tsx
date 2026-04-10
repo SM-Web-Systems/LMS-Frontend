@@ -9,7 +9,8 @@ import type { Conversation, Message } from '../types/message';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import { TextArea } from '../components/Input';
-import { MessageCircle, Send, Plus, ArrowLeft, User } from 'lucide-react';
+import { MessageCircle, Send, Plus, ArrowLeft, User, AlertCircle } from 'lucide-react';
+import { getErrorMessage } from '../utils/apiError';
 
 const Messages: React.FC = () => {
   const navigate = useNavigate();
@@ -29,6 +30,8 @@ const Messages: React.FC = () => {
   const [showNewConversation, setShowNewConversation] = useState(false);
   const [peers, setPeers] = useState<{ id: string; name: string }[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) {
@@ -38,6 +41,7 @@ const Messages: React.FC = () => {
     let cancelled = false;
     (async () => {
       setLoading(true);
+      setPageError(null);
       try {
         const [convs, peerList] = await Promise.all([
           messageService.getConversationsForUser(userId, isAdmin),
@@ -47,10 +51,11 @@ const Messages: React.FC = () => {
           setConversations(convs);
           setPeers(peerList);
         }
-      } catch {
+      } catch (e) {
         if (!cancelled) {
           setConversations([]);
           setPeers([]);
+          setPageError(getErrorMessage(e, 'Could not load messages.'));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -83,6 +88,7 @@ const Messages: React.FC = () => {
   const openConversationFromState = async (otherUserId: string, otherUserName: string) => {
     if (!userId) return;
     setOpeningConversation(true);
+    setActionError(null);
     try {
       const conv = await messageService.getOrCreateConversation(userId, userName, otherUserId, otherUserName);
       const [convs, msgs] = await Promise.all([
@@ -93,6 +99,8 @@ const Messages: React.FC = () => {
       setSelectedConversation(conv);
       setMessages(msgs);
       setShowNewConversation(false);
+    } catch (e) {
+      setActionError(getErrorMessage(e, 'Could not open that conversation.'));
     } finally {
       setOpeningConversation(false);
     }
@@ -150,12 +158,15 @@ const Messages: React.FC = () => {
     const body = newMessageBody.trim();
     if (!body || !selectedConversation || !userId) return;
     setSending(true);
+    setActionError(null);
     try {
       await messageService.sendMessage(selectedConversation.id, userId, body);
       const msgs = await messageService.getMessages(selectedConversation.id);
       setMessages(msgs);
       setNewMessageBody('');
       await refreshConversations();
+    } catch (e) {
+      setActionError(getErrorMessage(e, 'Could not send your message.'));
     } finally {
       setSending(false);
     }
@@ -196,6 +207,23 @@ const Messages: React.FC = () => {
           </Button>
         )}
       </div>
+
+      {pageError ? (
+        <div className="mb-4 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium">Messaging may be limited</p>
+            <p className="text-sm mt-1">{pageError}</p>
+          </div>
+        </div>
+      ) : null}
+
+      {actionError ? (
+        <div className="mb-4 flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>{actionError}</span>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-1">

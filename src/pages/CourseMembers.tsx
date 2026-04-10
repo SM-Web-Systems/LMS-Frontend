@@ -9,6 +9,7 @@ import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { Users, MessageCircle, User as UserIcon, Plus, Trash2, KeyRound } from 'lucide-react';
+import { getErrorMessage } from '../utils/apiError';
 
 type Member = { id: string; name: string; email: string };
 
@@ -105,7 +106,7 @@ const CourseMembers: React.FC = () => {
       setEditingCodesForId(null);
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : 'Failed to save');
+      alert(getErrorMessage(e, 'Could not save course codes.'));
     } finally {
       setSavingCodes(false);
     }
@@ -125,7 +126,7 @@ const CourseMembers: React.FC = () => {
       setManagingCourseId(null);
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : 'Failed to add member');
+      alert(getErrorMessage(e, 'Could not add that member.'));
     }
   };
 
@@ -136,7 +137,7 @@ const CourseMembers: React.FC = () => {
       await loadUsers();
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : 'Failed to remove member');
+      alert(getErrorMessage(e, 'Could not remove that member.'));
     }
   };
 

@@ -1,10 +1,13 @@
 import api from './api';
+import type { ApiResponse } from '../types/api';
 import type { Conversation, Message } from '../types/message';
+import { assertApiSuccess } from '../utils/apiError';
 
 export const messageService = {
   async getConversationsForUser(_userId: string, _isAdmin?: boolean): Promise<Conversation[]> {
-    const res = await api.get<{ success: boolean; data: { conversations: Conversation[] } }>('/messages/conversations');
-    return res.data?.data?.conversations ?? [];
+    const res = await api.get<ApiResponse<{ conversations: Conversation[] }>>('/messages/conversations');
+    const data = assertApiSuccess(res, 'Could not load conversations.');
+    return data.conversations ?? [];
   },
 
   getOtherDisplayName(conv: Conversation, userId: string, isAdmin?: boolean): { otherUserId: string; otherUserName: string } {
@@ -23,18 +26,21 @@ export const messageService = {
     otherUserId: string,
     _otherUserName: string
   ): Promise<Conversation> {
-    const res = await api.post<{ success: boolean; data: Conversation }>('/messages/conversations', { otherUserId });
-    return res.data.data;
+    const res = await api.post<ApiResponse<Conversation>>('/messages/conversations', { otherUserId });
+    return assertApiSuccess(res, 'Could not open that conversation.');
   },
 
   async getMessages(conversationId: string): Promise<Message[]> {
-    const res = await api.get<{ success: boolean; data: { messages: Message[] } }>(`/messages/conversations/${conversationId}/messages`);
-    return res.data?.data?.messages ?? [];
+    const res = await api.get<ApiResponse<{ messages: Message[] }>>(
+      `/messages/conversations/${conversationId}/messages`
+    );
+    const data = assertApiSuccess(res, 'Could not load messages.');
+    return data.messages ?? [];
   },
 
   async sendMessage(conversationId: string, _senderId: string, body: string): Promise<Message> {
-    const res = await api.post<{ success: boolean; data: Message }>(`/messages/conversations/${conversationId}/messages`, { body });
-    return res.data.data;
+    const res = await api.post<ApiResponse<Message>>(`/messages/conversations/${conversationId}/messages`, { body });
+    return assertApiSuccess(res, 'Could not send your message.');
   },
 
   generateId(): string {

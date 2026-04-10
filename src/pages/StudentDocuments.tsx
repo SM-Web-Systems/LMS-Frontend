@@ -1,12 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../context/useAuth';
 import { Card, CardContent } from '../components/Card';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
 import { documentsService } from '../services/documentsService';
-import { courseService } from '../services/courseService';
-import { enrollmentService } from '../services/enrollmentService';
-import { resourceAccessService } from '../services/resourceAccessService';
+import { getErrorMessage } from '../utils/apiError';
 import { CourseDocument } from '../types/api';
 import {
   FileText,
@@ -53,8 +50,6 @@ const formatFileSize = (bytes: number): string => {
 };
 
 const StudentDocuments: React.FC = () => {
-  const { user } = useAuth();
-  const userId = user?.id ?? '';
   const [documents, setDocuments] = useState<CourseDocument[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,17 +67,13 @@ const StudentDocuments: React.FC = () => {
       if (selectedCategory) params.category = selectedCategory;
 
       const response = await documentsService.getAll(params);
-      const accessibleCourseIds = await enrollmentService.getAccessibleCourseIds(userId);
-      const visible = response.documents.filter((doc) =>
-        resourceAccessService.canAccess(doc.id, accessibleCourseIds)
-      );
-      setDocuments(visible);
+      setDocuments(response.documents);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load documents');
+      setError(getErrorMessage(err, 'Could not load documents.'));
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, selectedCategory, userId]);
+  }, [searchTerm, selectedCategory]);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -97,13 +88,6 @@ const StudentDocuments: React.FC = () => {
     fetchCategories();
   }, [fetchCategories]);
 
-  // Sync course list from API so getAccessibleCourseIds() has data for resource filtering
-  useEffect(() => {
-    if (userId) {
-      courseService.fetchCourses().catch(() => {});
-    }
-  }, [userId]);
-
   useEffect(() => {
     const debounce = setTimeout(() => {
       fetchDocuments();
@@ -116,7 +100,7 @@ const StudentDocuments: React.FC = () => {
       setDownloadingId(doc.id);
       await documentsService.download(doc.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to download file');
+      setError(getErrorMessage(err, 'Could not download the file.'));
     } finally {
       setDownloadingId(null);
     }

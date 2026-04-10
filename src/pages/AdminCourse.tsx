@@ -14,6 +14,7 @@ import {
   GripVertical,
 } from 'lucide-react';
 import { documentsService } from '../services/documentsService';
+import { getErrorMessage } from '../utils/apiError';
 
 type ItemDraft = {
   tempId: string;
@@ -270,7 +271,7 @@ const AdminCourse: React.FC = () => {
       startNew();
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : 'Failed to save course');
+      alert(getErrorMessage(e, 'Could not save the course.'));
     } finally {
       setSaving(false);
     }
@@ -284,7 +285,7 @@ const AdminCourse: React.FC = () => {
       if (editingId === id) startNew();
     } catch (e) {
       console.error(e);
-      alert(e instanceof Error ? e.message : 'Failed to delete course');
+      alert(getErrorMessage(e, 'Could not delete the course.'));
     }
   };
 

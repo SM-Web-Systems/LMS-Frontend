@@ -1,5 +1,7 @@
 import api from './api';
+import type { ApiResponse } from '../types/api';
 import type { Course, CourseSection } from '../types/course';
+import { ApiRequestError, assertApiSuccess } from '../utils/apiError';
 
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -58,33 +60,33 @@ export const courseService = {
 
   async createCourse(course: Course): Promise<Course> {
     const sections = this.toBackendSections(course);
-    const response = await api.post<{ success?: boolean; data?: unknown }>('/courses', {
+    const response = await api.post<ApiResponse<unknown>>('/courses', {
       id: course.id,
       title: course.title,
       description: course.description ?? null,
       courseCode: course.courseCode || course.id.replace(/\s+/g, '-').toUpperCase().slice(0, 32),
       sections,
     });
-    const data = response.data?.data;
+    const data = assertApiSuccess(response, 'Could not create the course.');
     if (data && typeof data === 'object' && 'id' in data) {
       return fromApiCourse(data as Parameters<typeof fromApiCourse>[0]);
     }
-    throw new Error('Failed to create course');
+    throw new ApiRequestError({ message: 'The server returned an unexpected response when creating the course.' });
   },
 
   async updateCourse(id: string, course: Course): Promise<Course> {
     const sections = this.toBackendSections(course);
-    const response = await api.put<{ success?: boolean; data?: unknown }>(`/courses/${id}`, {
+    const response = await api.put<ApiResponse<unknown>>(`/courses/${id}`, {
       title: course.title,
       description: course.description ?? null,
       courseCode: course.courseCode,
       sections,
     });
-    const data = response.data?.data;
+    const data = assertApiSuccess(response, 'Could not save the course.');
     if (data && typeof data === 'object' && 'id' in data) {
       return fromApiCourse(data as Parameters<typeof fromApiCourse>[0]);
     }
-    throw new Error('Failed to update course');
+    throw new ApiRequestError({ message: 'The server returned an unexpected response when saving the course.' });
   },
 
   async deleteCourse(id: string): Promise<void> {

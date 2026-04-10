@@ -1,38 +1,42 @@
 import api from './api';
-import type { User } from '../types/api';
+import type { ApiResponse, User } from '../types/api';
+import { assertApiOk, assertApiSuccess } from '../utils/apiError';
 import type { ForumTopic, ForumPost, CreateTopicData, CreatePostData } from '../types/forum';
 
 export const forumService = {
   async getTopics(): Promise<ForumTopic[]> {
-    const res = await api.get<{ success: boolean; data: { topics: ForumTopic[] } }>('/forum/topics');
-    return res.data?.data?.topics ?? [];
+    const res = await api.get<ApiResponse<{ topics: ForumTopic[] }>>('/forum/topics');
+    const data = assertApiSuccess(res, 'Could not load forum topics.');
+    return data.topics ?? [];
   },
 
   async getTopic(id: string): Promise<ForumTopic | null> {
     try {
-      const res = await api.get<{ success: boolean; data: ForumTopic }>(`/forum/topics/${id}`);
-      return res.data?.data ?? null;
+      const res = await api.get<ApiResponse<ForumTopic>>(`/forum/topics/${id}`);
+      return assertApiSuccess(res, 'Could not load that topic.');
     } catch {
       return null;
     }
   },
 
   async getPosts(topicId: string): Promise<ForumPost[]> {
-    const res = await api.get<{ success: boolean; data: { posts: ForumPost[] } }>(`/forum/topics/${topicId}/posts`);
-    return res.data?.data?.posts ?? [];
+    const res = await api.get<ApiResponse<{ posts: ForumPost[] }>>(`/forum/topics/${topicId}/posts`);
+    const data = assertApiSuccess(res, 'Could not load replies.');
+    return data.posts ?? [];
   },
 
   async createTopic(_user: User, data: CreateTopicData): Promise<ForumTopic> {
-    const res = await api.post<{ success: boolean; data: ForumTopic }>('/forum/topics', data);
-    return res.data.data;
+    const res = await api.post<ApiResponse<ForumTopic>>('/forum/topics', data);
+    return assertApiSuccess(res, 'Could not create the topic. Check title and body, then try again.');
   },
 
   async createPost(_user: User, topicId: string, data: CreatePostData): Promise<ForumPost> {
-    const res = await api.post<{ success: boolean; data: ForumPost }>(`/forum/topics/${topicId}/posts`, data);
-    return res.data.data;
+    const res = await api.post<ApiResponse<ForumPost>>(`/forum/topics/${topicId}/posts`, data);
+    return assertApiSuccess(res, 'Could not post your reply.');
   },
 
   async deleteTopic(id: string): Promise<void> {
-    await api.delete(`/forum/topics/${id}`);
+    const res = await api.delete<ApiResponse<unknown>>(`/forum/topics/${id}`);
+    assertApiOk(res, 'Could not delete the topic.');
   },
 };

@@ -5,7 +5,8 @@ import Input from '../components/Input';
 import { quizService } from '../services/quizService';
 import { useAuth } from '../context/useAuth';
 import type { Quiz, QuizCompletion } from '../types/quiz';
-import { ClipboardList, CheckCircle, XCircle, ArrowLeft, Loader2, CreditCard } from 'lucide-react';
+import { ClipboardList, CheckCircle, XCircle, ArrowLeft, Loader2, CreditCard, AlertCircle } from 'lucide-react';
+import { getErrorMessage } from '../utils/apiError';
 
 type View = 'list' | 'take' | 'result';
 
@@ -20,12 +21,15 @@ const StudentQuizzes: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [lastResult, setLastResult] = useState<QuizCompletion | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
     const load = async () => {
       setLoading(true);
+      setLoadError(null);
       try {
         const list = await quizService.getAll();
         if (cancelled) return;
@@ -42,8 +46,11 @@ const StudentQuizzes: React.FC = () => {
           })
         );
         if (!cancelled) setCompletions(comps);
-      } catch {
-        if (!cancelled) setQuizzes([]);
+      } catch (e) {
+        if (!cancelled) {
+          setQuizzes([]);
+          setLoadError(getErrorMessage(e, 'Could not load quizzes.'));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -66,11 +73,14 @@ const StudentQuizzes: React.FC = () => {
   const submitQuiz = async () => {
     if (!currentQuiz || !userId) return;
     setSubmitting(true);
+    setSubmitError(null);
     try {
       const result = await quizService.submitQuiz(currentQuiz.id, userId, answers);
       setLastResult(result);
       setCompletions((prev) => ({ ...prev, [currentQuiz.id]: result }));
       setView('result');
+    } catch (e) {
+      setSubmitError(getErrorMessage(e, 'Could not submit your answers.'));
     } finally {
       setSubmitting(false);
     }
@@ -96,6 +106,12 @@ const StudentQuizzes: React.FC = () => {
           <CardContent className="p-6">
             <h1 className="text-2xl font-bold text-neutral-800 mb-2">{currentQuiz.title}</h1>
             {currentQuiz.description && <p className="text-neutral-600 mb-6">{currentQuiz.description}</p>}
+            {submitError ? (
+              <div className="mb-4 flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>{submitError}</span>
+              </div>
+            ) : null}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -214,6 +230,14 @@ const StudentQuizzes: React.FC = () => {
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-neutral-400" />
+        </div>
+      ) : loadError ? (
+        <div className="flex gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800">
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium">Could not load quizzes</p>
+            <p className="text-sm mt-1">{loadError}</p>
+          </div>
         </div>
       ) : quizzes.length === 0 ? (
         <p className="text-neutral-600">No quizzes available yet. Check back later.</p>

@@ -7,6 +7,7 @@ import { TextArea } from '../components/Input';
 import Modal from '../components/Modal';
 import { FileText, CheckCircle, XCircle, Clock, Eye, Download, Loader2 } from 'lucide-react';
 import { Submission, SubmissionStatus } from '../types/api';
+import { getErrorMessage } from '../utils/apiError';
 
 const AdminSubmissions: React.FC = () => {
   const { user } = useAuth();
@@ -49,7 +50,7 @@ const AdminSubmissions: React.FC = () => {
         setReviewingSubmission(null);
         setFeedback('');
       } catch (error) {
-        setReviewError(error instanceof Error ? error.message : 'Failed to approve');
+        setReviewError(getErrorMessage(error, 'Could not approve this submission.'));
       } finally {
         setReviewing(false);
       }
@@ -70,7 +71,7 @@ const AdminSubmissions: React.FC = () => {
         setReviewingSubmission(null);
         setFeedback('');
       } catch (error) {
-        setReviewError(error instanceof Error ? error.message : 'Failed to reject');
+        setReviewError(getErrorMessage(error, 'Could not reject this submission.'));
       } finally {
         setReviewing(false);
       }
@@ -82,7 +83,7 @@ const AdminSubmissions: React.FC = () => {
       try {
         await deleteSubmission(id);
       } catch (error) {
-        alert(error instanceof Error ? error.message : 'Failed to delete submission');
+        alert(getErrorMessage(error, 'Could not delete the submission.'));
       }
     }
   };
@@ -91,7 +92,7 @@ const AdminSubmissions: React.FC = () => {
     try {
       await downloadSubmission(id);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to download file');
+      alert(getErrorMessage(error, 'Could not download the file.'));
     }
   };
 

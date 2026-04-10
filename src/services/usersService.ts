@@ -4,6 +4,7 @@
 
 import api from './api';
 import { ApiResponse } from '../types/api';
+import { assertApiSuccess } from '../utils/apiError';
 
 export interface UserDirectoryItem {
   id: string;
@@ -21,10 +22,8 @@ export const usersService = {
   /** GET /users (admin only). Returns all users with courseCodes. */
   async getUsers(): Promise<UserDirectoryItem[]> {
     const response = await api.get<ApiResponse<UsersResponse>>('/users');
-    if (response.data.success && response.data.data?.users) {
-      return response.data.data.users;
-    }
-    throw new Error((response.data as { error?: { message?: string } })?.error?.message || 'Failed to fetch users');
+    const data = assertApiSuccess(response, 'Could not load users.');
+    return data.users;
   },
 
   /** PATCH /users/:id (admin only). Set courseCodes for a user. */
@@ -32,9 +31,6 @@ export const usersService = {
     const response = await api.patch<ApiResponse<{ id: string; courseCodes: string[] }>>(`/users/${userId}`, {
       courseCodes,
     });
-    if (response.data.success && response.data.data) {
-      return response.data.data;
-    }
-    throw new Error((response.data as { error?: { message?: string } })?.error?.message || 'Failed to update user');
+    return assertApiSuccess(response, 'Could not update course access for that user.');
   },
 };

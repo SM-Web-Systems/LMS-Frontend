@@ -4,6 +4,7 @@ import { Card, CardHeader, CardContent, CardTitle } from '../components/Card';
 import Button from '../components/Button';
 import Input, { TextArea } from '../components/Input';
 import Modal from '../components/Modal';
+import { getErrorMessage } from '../utils/apiError';
 import { Upload, FileText, CheckCircle, XCircle, Clock, Trash2, Loader2 } from 'lucide-react';
 
 const StudentSubmissions: React.FC = () => {
@@ -54,7 +55,7 @@ const StudentSubmissions: React.FC = () => {
       setFormData({ title: '', description: '', file: null });
       setIsModalOpen(false);
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Failed to submit');
+      setSubmitError(getErrorMessage(error, 'Could not submit your work.'));
     } finally {
       setSubmitting(false);
     }
@@ -65,7 +66,7 @@ const StudentSubmissions: React.FC = () => {
       try {
         await deleteSubmission(id);
       } catch (error) {
-        alert(error instanceof Error ? error.message : 'Failed to delete submission');
+        alert(getErrorMessage(error, 'Could not delete the submission.'));
       }
     }
   };

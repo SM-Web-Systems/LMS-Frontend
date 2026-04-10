@@ -9,6 +9,7 @@ import { userDirectoryService } from '../services/userDirectoryService';
 import { usersService } from '../services/usersService';
 import { UserPlus, Edit, Trash2, Mail, BookOpen, Loader2, KeyRound } from 'lucide-react';
 import { Student, CreateStudentData, UpdateStudentData } from '../types/api';
+import { getErrorMessage } from '../utils/apiError';
 
 const AdminStudents: React.FC = () => {
   const { 
@@ -132,7 +133,7 @@ const AdminStudents: React.FC = () => {
       }
       setIsModalOpen(false);
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Operation failed');
+      setSubmitError(getErrorMessage(error, 'Could not save the student.'));
     } finally {
       setSubmitting(false);
     }
@@ -143,7 +144,7 @@ const AdminStudents: React.FC = () => {
       try {
         await deleteStudent(id);
       } catch (error) {
-        alert(error instanceof Error ? error.message : 'Failed to delete student');
+        alert(getErrorMessage(error, 'Could not delete the student.'));
       }
     }
   };

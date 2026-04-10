@@ -1,4 +1,5 @@
 import api from './api';
+import { assertApiOk, assertApiSuccess } from '../utils/apiError';
 import {
   ApiResponse,
   Student,
@@ -18,50 +19,27 @@ export const studentsService = {
     const response = await api.get<ApiResponse<StudentsResponse>>('/students', {
       params,
     });
-    
-    if (response.data.success && response.data.data) {
-      return response.data.data;
-    }
-    
-    throw new Error(response.data.error?.message || 'Failed to fetch students');
+    return assertApiSuccess(response, 'Could not load students.');
   },
 
   async getById(id: string): Promise<Student> {
     const response = await api.get<ApiResponse<Student>>(`/students/${id}`);
-    
-    if (response.data.success && response.data.data) {
-      return response.data.data;
-    }
-    
-    throw new Error(response.data.error?.message || 'Failed to fetch student');
+    return assertApiSuccess(response, 'Could not load that student.');
   },
 
   async create(data: CreateStudentData): Promise<Student> {
     const response = await api.post<ApiResponse<Student>>('/students', data);
-    
-    if (response.data.success && response.data.data) {
-      return response.data.data;
-    }
-    
-    throw new Error(response.data.error?.message || 'Failed to create student');
+    return assertApiSuccess(response, 'Could not add the student.');
   },
 
   async update(id: string, data: UpdateStudentData): Promise<Student> {
     const response = await api.put<ApiResponse<Student>>(`/students/${id}`, data);
-    
-    if (response.data.success && response.data.data) {
-      return response.data.data;
-    }
-    
-    throw new Error(response.data.error?.message || 'Failed to update student');
+    return assertApiSuccess(response, 'Could not update the student.');
   },
 
   async delete(id: string): Promise<void> {
     const response = await api.delete<ApiResponse<void>>(`/students/${id}`);
-    
-    if (!response.data.success) {
-      throw new Error(response.data.error?.message || 'Failed to delete student');
-    }
+    assertApiOk(response, 'Could not delete the student.');
   },
 };
 

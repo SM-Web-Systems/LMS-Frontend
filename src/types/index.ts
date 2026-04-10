@@ -48,6 +48,7 @@ export interface CourseDocument {
   fileSize: number;
   fileUrl: string;
   fileMimeType?: string;
+  courseIds?: string[];
   uploadedBy: string;
   uploadedById: string;
   uploadedAt: string;

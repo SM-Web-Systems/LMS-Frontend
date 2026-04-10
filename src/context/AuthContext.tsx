@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useAuth as useClerkAuth, useUser as useClerkUser } from '@clerk/clerk-react';
 import { setTokenGetter } from '../services/api';
+import { getErrorMessage } from '../utils/apiError';
 import { User } from '../types/api';
 import api from '../services/api';
 
@@ -46,7 +47,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setUser(response.data.data);
         }
       } catch (err) {
-        console.error('Failed to fetch user profile:', err);
+        console.error('Failed to fetch user profile:', getErrorMessage(err));
         if (!cancelled) setUser(null);
       } finally {
         if (!cancelled) setIsSyncing(false);

@@ -1,4 +1,5 @@
-import axios, { AxiosInstance, AxiosError } from 'axios';
+import axios, { AxiosInstance, isAxiosError } from 'axios';
+import { fromAxiosError } from '../utils/apiError';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1';
 
@@ -42,11 +43,24 @@ api.interceptors.request.use(async (config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error: AxiosError) => {
-    if (error.response?.status === 401) {
-      window.location.href = '/login';
+  (error) => {
+    if (!isAxiosError(error)) {
+      return Promise.reject(error);
     }
-    return Promise.reject(error);
+    const reqUrl = error.config?.url ?? '';
+    // Never hard-redirect on these: /auth/me uses Clerk token; backend may return 401 until
+    // Clerk is verified server-side — redirecting would reload /login while Clerk session
+    // persists and causes an infinite loop.
+    if (error.response?.status === 401) {
+      const skipRedirect =
+        reqUrl.includes('/auth/login') ||
+        reqUrl.includes('/auth/google') ||
+        reqUrl.includes('/auth/me');
+      if (!skipRedirect) {
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(fromAxiosError(error));
   }
 );
 

@@ -146,6 +146,8 @@ export interface CourseDocument {
   fileSize: number;
   fileUrl: string;
   fileMimeType?: string;
+  /** When set, only students enrolled in these courses (by course id) can access; omitted/empty = all students. */
+  courseIds?: string[];
   uploadedBy: string;
   uploadedById: string;
   uploadedAt: string;
@@ -157,12 +159,14 @@ export interface CreateDocumentData {
   description: string;
   category: string;
   file: File;
+  courseIds?: string[];
 }
 
 export interface UpdateDocumentData {
   title?: string;
   description?: string;
   category?: string;
+  courseIds?: string[];
 }
 
 export interface DocumentQueryParams {

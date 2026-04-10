@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { studentsService } from '../services/studentsService';
 import { submissionsService } from '../services/submissionsService';
+import { getErrorMessage } from '../utils/apiError';
 import { 
   Student, 
   Submission, 
@@ -60,7 +61,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setStudents(data.students);
       setStudentsPagination(data.pagination);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch students';
+      const message = getErrorMessage(error, 'Could not load students.');
       setStudentsError(message);
       console.error('Error fetching students:', error);
     } finally {
@@ -96,7 +97,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setSubmissions(data.submissions);
       setSubmissionsPagination(data.pagination);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch submissions';
+      const message = getErrorMessage(error, 'Could not load submissions.');
       setSubmissionsError(message);
       console.error('Error fetching submissions:', error);
     } finally {

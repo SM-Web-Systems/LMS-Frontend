@@ -5,7 +5,8 @@ import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { documentsService } from '../services/documentsService';
 import { courseService } from '../services/courseService';
-import { resourceAccessService } from '../services/resourceAccessService';
+import { getCourseIdsFromDocument, documentAccessLabel } from '../services/resourceAccessService';
+import { getErrorMessage } from '../utils/apiError';
 import { CourseDocument, CreateDocumentData } from '../types/api';
 import type { Course } from '../types/course';
 import {
@@ -115,7 +116,7 @@ const AdminDocuments: React.FC = () => {
       const response = await documentsService.getAll(params);
       setDocuments(response.documents);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load documents');
+      setError(getErrorMessage(err, 'Could not load documents.'));
     } finally {
       setLoading(false);
     }
@@ -177,22 +178,22 @@ const AdminDocuments: React.FC = () => {
       setUploading(true);
       setError(null);
 
+      const courseIds = formData.accessType === 'open' ? [] : formData.selectedCourseIds;
       const data: CreateDocumentData = {
         title: formData.title,
         description: formData.description,
         category: formData.category,
         file: selectedFile,
+        courseIds,
       };
 
-      const created = await documentsService.create(data);
-      const courseIds = formData.accessType === 'open' ? [] : formData.selectedCourseIds;
-      resourceAccessService.setCourseIds(created.id, courseIds);
+      await documentsService.create(data);
       setSuccessMessage('Document uploaded successfully!');
       setIsUploadModalOpen(false);
       resetForm();
       fetchDocuments();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to upload document');
+      setError(getErrorMessage(err, 'Could not upload the document.'));
     } finally {
       setUploading(false);
     }
@@ -206,13 +207,12 @@ const AdminDocuments: React.FC = () => {
       setError(null);
 
       await documentsService.delete(documentToDelete.id);
-      resourceAccessService.remove(documentToDelete.id);
       setSuccessMessage('Document deleted successfully!');
       setIsDeleteModalOpen(false);
       setDocumentToDelete(null);
       fetchDocuments();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete document');
+      setError(getErrorMessage(err, 'Could not delete the document.'));
     } finally {
       setDeleting(false);
     }
@@ -222,7 +222,7 @@ const AdminDocuments: React.FC = () => {
     try {
       await documentsService.download(doc.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to download file');
+      setError(getErrorMessage(err, 'Could not download the file.'));
     }
   };
 
@@ -242,30 +242,28 @@ const AdminDocuments: React.FC = () => {
 
   const openEditAccessModal = (doc: CourseDocument) => {
     setDocumentForAccess(doc);
-    const ids = resourceAccessService.getCourseIds(doc.id);
+    const ids = getCourseIdsFromDocument(doc);
     setEditAccessCourseIds(ids);
     setEditAccessRestrictToCourses(ids.length > 0);
     setIsEditAccessModalOpen(true);
   };
 
-  const saveEditAccess = () => {
+  const saveEditAccess = async () => {
     if (!documentForAccess) return;
     const courseIds = editAccessRestrictToCourses ? editAccessCourseIds : [];
-    resourceAccessService.setCourseIds(documentForAccess.id, courseIds);
-    setSuccessMessage('Resource access updated.');
-    setIsEditAccessModalOpen(false);
-    setDocumentForAccess(null);
-    fetchDocuments();
+    try {
+      setError(null);
+      await documentsService.update(documentForAccess.id, { courseIds });
+      setSuccessMessage('Resource access updated.');
+      setIsEditAccessModalOpen(false);
+      setDocumentForAccess(null);
+      fetchDocuments();
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not update who can access this document.'));
+    }
   };
 
-  const getAccessLabel = (doc: CourseDocument): string => {
-    const ids = resourceAccessService.getCourseIds(doc.id);
-    if (ids.length === 0) return 'Open to all';
-    const names = ids
-      .map((id) => courses.find((c) => c.id === id)?.title)
-      .filter(Boolean) as string[];
-    return names.length ? names.join(', ') : 'Restricted';
-  };
+  const getAccessLabel = (doc: CourseDocument): string => documentAccessLabel(doc, courses);
 
   const openDeleteModal = (doc: CourseDocument) => {
     setDocumentToDelete(doc);

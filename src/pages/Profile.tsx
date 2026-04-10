@@ -7,7 +7,8 @@ import { userDirectoryService } from '../services/userDirectoryService';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import Input, { TextArea } from '../components/Input';
-import { User, CheckCircle, Loader2, ArrowLeft, MessageCircle } from 'lucide-react';
+import { User, CheckCircle, Loader2, ArrowLeft, MessageCircle, AlertCircle } from 'lucide-react';
+import { getErrorMessage } from '../utils/apiError';
 import type { QuizCompletion } from '../types/quiz';
 
 const Profile: React.FC = () => {
@@ -20,7 +21,9 @@ const Profile: React.FC = () => {
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [completionsWithTitles, setCompletionsWithTitles] = useState<(QuizCompletion & { quizTitle: string })[]>([]);
+  const [quizSectionError, setQuizSectionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.name && !isViewingOther) setName(user.name);
@@ -46,6 +49,7 @@ const Profile: React.FC = () => {
     if (!user || isViewingOther) return;
     setSaving(true);
     setSaved(false);
+    setSaveError(null);
     try {
       const updatedUser = { ...user, name: name.trim() || user.name };
       updateUser(updatedUser);
@@ -55,6 +59,8 @@ const Profile: React.FC = () => {
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setSaveError(getErrorMessage(e, 'Could not save your profile.'));
     } finally {
       setSaving(false);
     }
@@ -67,16 +73,22 @@ const Profile: React.FC = () => {
       return;
     }
     const load = async () => {
-      const completions = await quizService.getCompletionsForUser(profileUserId);
-      const passed = completions.filter((c) => c.passed);
-      const withTitles = await Promise.all(
-        passed.map(async (c) => {
-          const quiz = await quizService.getById(c.quizId);
-          return { ...c, quizTitle: quiz?.title ?? 'Quiz' };
-        })
-      );
-      withTitles.sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
-      setCompletionsWithTitles(withTitles);
+      setQuizSectionError(null);
+      try {
+        const completions = await quizService.getCompletionsForUser(profileUserId);
+        const passed = completions.filter((c) => c.passed);
+        const withTitles = await Promise.all(
+          passed.map(async (c) => {
+            const quiz = await quizService.getById(c.quizId);
+            return { ...c, quizTitle: quiz?.title ?? 'Quiz' };
+          })
+        );
+        withTitles.sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+        setCompletionsWithTitles(withTitles);
+      } catch (e) {
+        setCompletionsWithTitles([]);
+        setQuizSectionError(getErrorMessage(e, 'Could not load completed quizzes.'));
+      }
     };
     load();
   }, [profileUserId]);
@@ -154,6 +166,12 @@ const Profile: React.FC = () => {
                     onChange={(e) => setDescription(e.target.value)}
                     rows={4}
                   />
+                  {saveError ? (
+                    <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                      <span>{saveError}</span>
+                    </div>
+                  ) : null}
                   <div className="flex gap-3">
                     <Button onClick={handleSave} disabled={saving}>
                       {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -189,6 +207,12 @@ const Profile: React.FC = () => {
                 <CheckCircle className="h-5 w-5 text-green-600" />
                 Completed
               </h2>
+              {quizSectionError ? (
+                <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 mb-3">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>{quizSectionError}</span>
+                </div>
+              ) : null}
               {completionsWithTitles.length === 0 ? (
                 <p className="text-sm text-neutral-500">
                   {isViewingOther ? 'No completed quizzes yet.' : 'No completed quizzes yet. Take a quiz from the Quizzes page.'}

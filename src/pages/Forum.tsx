@@ -14,7 +14,9 @@ import {
   User,
   Calendar,
   MessageSquare,
+  AlertCircle,
 } from 'lucide-react';
+import { getErrorMessage } from '../utils/apiError';
 
 const Forum: React.FC = () => {
   const { user } = useAuth();
@@ -28,13 +30,19 @@ const Forum: React.FC = () => {
   const [replyBody, setReplyBody] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [postsLoading, setPostsLoading] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
+  /** Loading posts for a thread, or failed reply submit */
+  const [threadError, setThreadError] = useState<string | null>(null);
+  const [newTopicError, setNewTopicError] = useState<string | null>(null);
 
   const loadTopics = useCallback(async () => {
+    setListError(null);
     try {
       const list = await forumService.getTopics();
       setTopics(Array.isArray(list) ? list : []);
-    } catch {
+    } catch (e) {
       setTopics([]);
+      setListError(getErrorMessage(e, 'Could not load forum topics.'));
     }
   }, []);
 
@@ -58,10 +66,14 @@ const Forum: React.FC = () => {
       .then((list) => {
         if (!cancelled) {
           setPosts(Array.isArray(list) ? list : []);
+          setThreadError(null);
         }
       })
-      .catch(() => {
-        if (!cancelled) setPosts([]);
+      .catch((e) => {
+        if (!cancelled) {
+          setPosts([]);
+          setThreadError(getErrorMessage(e, 'Could not load replies.'));
+        }
       })
       .finally(() => {
         if (!cancelled) setPostsLoading(false);
@@ -73,14 +85,15 @@ const Forum: React.FC = () => {
     e.preventDefault();
     if (!user || !newTitle.trim() || !newBody.trim()) return;
     setSubmitting(true);
+    setNewTopicError(null);
     try {
       await forumService.createTopic(user, { title: newTitle.trim(), body: newBody.trim() });
       setNewTitle('');
       setNewBody('');
       setShowNewTopic(false);
       await loadTopics();
-    } catch {
-      // Error handled by service / could show toast
+    } catch (err) {
+      setNewTopicError(getErrorMessage(err, 'Could not create the topic.'));
     } finally {
       setSubmitting(false);
     }
@@ -90,6 +103,7 @@ const Forum: React.FC = () => {
     e.preventDefault();
     if (!user || !selectedTopic || !replyBody.trim()) return;
     setSubmitting(true);
+    setThreadError(null);
     try {
       await forumService.createPost(user, selectedTopic.id, { body: replyBody.trim() });
       setReplyBody('');
@@ -100,8 +114,8 @@ const Forum: React.FC = () => {
       setPosts(Array.isArray(updatedPosts) ? updatedPosts : []);
       setSelectedTopic(updatedTopic ?? selectedTopic);
       await loadTopics(); // refresh topic list (post count, lastPostAt)
-    } catch {
-      // Error handled by service / could show toast
+    } catch (err) {
+      setThreadError(getErrorMessage(err, 'Could not post your reply.'));
     } finally {
       setSubmitting(false);
     }
@@ -109,12 +123,13 @@ const Forum: React.FC = () => {
 
   const openTopic = (topic: ForumTopic) => {
     setSelectedTopic(topic);
-    // Posts are loaded by the useEffect when selectedTopic changes
+    setThreadError(null);
   };
 
   const backToList = () => {
     setSelectedTopic(null);
     setPosts([]);
+    setThreadError(null);
   };
 
   // Thread view: single topic + replies
@@ -139,6 +154,12 @@ const Forum: React.FC = () => {
         <h2 className="text-lg font-semibold text-neutral-800 mb-3">
           Replies ({posts.length})
         </h2>
+        {threadError && !postsLoading ? (
+          <div className="mb-4 flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>{threadError}</span>
+          </div>
+        ) : null}
         {postsLoading ? (
           <div className="flex items-center justify-center py-12 mb-8">
             <Loader2 className="h-8 w-8 animate-spin text-neutral-400" />
@@ -195,6 +216,16 @@ const Forum: React.FC = () => {
         </div>
       </div>
 
+      {listError ? (
+        <div className="mb-6 flex gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800">
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium">Could not load discussions</p>
+            <p className="text-sm mt-1">{listError}</p>
+          </div>
+        </div>
+      ) : null}
+
       {/* Prominent "Start discussion" button - always visible */}
       <Card className="mb-6 border-2 border-accent-teal/40 bg-accent-teal/5">
         <CardContent className="py-4">
@@ -220,6 +251,12 @@ const Forum: React.FC = () => {
           <CardContent className="p-6">
             <h2 className="text-lg font-semibold text-neutral-800 mb-4">New discussion</h2>
             <form onSubmit={handleCreateTopic} className="space-y-4">
+              {newTopicError ? (
+                <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>{newTopicError}</span>
+                </div>
+              ) : null}
               <Input
                 type="text"
                 label="Title"
@@ -259,7 +296,12 @@ const Forum: React.FC = () => {
                   type="button"
                   variant="outline"
                   size="lg"
-                  onClick={() => { setShowNewTopic(false); setNewTitle(''); setNewBody(''); }}
+                  onClick={() => {
+                    setShowNewTopic(false);
+                    setNewTitle('');
+                    setNewBody('');
+                    setNewTopicError(null);
+                  }}
                 >
                   Cancel
                 </Button>

@@ -20,8 +20,20 @@ export const enrollmentService = {
     }
   },
 
-  async setMembers(_courseId: string, _userIds: string[]): Promise<void> {
-    // Managed through addCourseMember / removeCourseMember on the server
+  async setMembers(courseId: string, userIds: string[]): Promise<void> {
+    const current = await courseService.fetchCourseMembers(courseId);
+    const currentIds = new Set(current.map((m) => m.id));
+    const target = new Set(userIds);
+    for (const id of currentIds) {
+      if (!target.has(id)) {
+        await courseService.removeCourseMember(courseId, id);
+      }
+    }
+    for (const id of target) {
+      if (!currentIds.has(id)) {
+        await courseService.addCourseMember(courseId, id);
+      }
+    }
   },
 
   async addMember(courseId: string, userId: string): Promise<void> {

@@ -4,6 +4,7 @@ import { Card, CardContent } from '../components/Card';
 import { VideoPlayerModal } from '../components/VideoPlayerModal';
 import { PdfViewer, PdfViewerWithAuth } from '../components/PdfViewer';
 import { courseService } from '../services/courseService';
+import { getErrorMessage } from '../utils/apiError';
 import { getCourseWeeks, type CourseSection, type CourseItem } from '../types/course';
 import type { Course } from '../types/course';
 import { Play, ExternalLink, FileText, BookOpen, Target, CheckCircle, ChevronDown, ChevronRight } from 'lucide-react';
@@ -32,7 +33,7 @@ const StudentCourse: React.FC = () => {
       const list = await courseService.fetchCourses();
       setCourses(list);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load courses');
+      setError(getErrorMessage(e, 'Could not load your courses.'));
       setCourses([]);
     } finally {
       setLoading(false);

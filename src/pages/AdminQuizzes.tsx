@@ -6,7 +6,8 @@ import { quizService } from '../services/quizService';
 import { courseService } from '../services/courseService';
 import type { Quiz, QuizQuestion } from '../types/quiz';
 import type { Course } from '../types/course';
-import { ClipboardList, Plus, Trash2, Pencil, ArrowLeft, Loader2, GripVertical } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, Pencil, ArrowLeft, Loader2, GripVertical, AlertCircle } from 'lucide-react';
+import { getErrorMessage } from '../utils/apiError';
 
 function newTempId(): string {
   return 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
@@ -33,15 +34,24 @@ const AdminQuizzes: React.FC = () => {
   const [questions, setQuestions] = useState<QuestionDraft[]>([]);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
-      const [quizList, courseList] = await Promise.all([
-        quizService.getAll(),
-        courseService.fetchCourses().catch(() => []),
-      ]);
-      setQuizzes(quizList);
-      setCourses(courseList);
+      setLoadError(null);
+      try {
+        const [quizList, courseList] = await Promise.all([
+          quizService.getAll(),
+          courseService.fetchCourses().catch(() => []),
+        ]);
+        setQuizzes(quizList);
+        setCourses(courseList);
+      } catch (e) {
+        setLoadError(getErrorMessage(e, 'Could not load quizzes.'));
+        setQuizzes([]);
+        setCourses([]);
+      }
     };
     load();
   }, []);
@@ -129,6 +139,7 @@ const AdminQuizzes: React.FC = () => {
   const handleSave = async () => {
     if (!title.trim()) return;
     setSaving(true);
+    setFormError(null);
     try {
       const quiz: Quiz = {
         id: editingId || quizService.generateId(),
@@ -158,16 +169,21 @@ const AdminQuizzes: React.FC = () => {
       setQuizzes(list);
       setShowForm(false);
       startNew();
+    } catch (e) {
+      setFormError(getErrorMessage(e, 'Could not save the quiz.'));
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Delete this quiz? This cannot be undone.')) {
+    if (!window.confirm('Delete this quiz? This cannot be undone.')) return;
+    try {
       await quizService.delete(id);
       const list = await quizService.getAll();
       setQuizzes(list);
+    } catch (e) {
+      alert(getErrorMessage(e, 'Could not delete the quiz.'));
     }
   };
 
@@ -180,6 +196,16 @@ const AdminQuizzes: React.FC = () => {
           <p className="text-neutral-600 mt-1">Create and edit quizzes. Students can take them from the Quizzes page.</p>
         </div>
       </div>
+
+      {loadError ? (
+        <div className="mb-6 flex gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800">
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium">Could not load quizzes</p>
+            <p className="text-sm mt-1">{loadError}</p>
+          </div>
+        </div>
+      ) : null}
 
       {!showForm ? (
         <>
@@ -222,6 +248,13 @@ const AdminQuizzes: React.FC = () => {
                 Cancel
               </Button>
             </div>
+
+            {formError ? (
+              <div className="mb-4 flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>{formError}</span>
+              </div>
+            ) : null}
 
             <div className="space-y-6">
               <Input label="Quiz title" placeholder="e.g. Week 1 Knowledge Check" value={title} onChange={(e) => setTitle(e.target.value)} />

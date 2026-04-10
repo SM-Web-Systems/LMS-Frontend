@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { Card, CardHeader, CardContent, CardTitle } from '../components/Card';
-import { Users, FileText, CheckCircle, Clock, XCircle, TrendingUp, Loader2, MessageCircle } from 'lucide-react';
+import { Users, FileText, CheckCircle, Clock, XCircle, TrendingUp, Loader2, MessageCircle, AlertCircle } from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -10,7 +10,9 @@ const AdminDashboard: React.FC = () => {
     students, 
     submissions, 
     studentsLoading, 
-    submissionsLoading, 
+    submissionsLoading,
+    studentsError,
+    submissionsError,
     fetchStudents, 
     fetchSubmissions 
   } = useData();
@@ -72,12 +74,24 @@ const AdminDashboard: React.FC = () => {
     );
   }
 
+  const loadError = [studentsError, submissionsError].filter(Boolean).join(' ');
+
   return (
     <div>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
         <p className="text-gray-600 mt-1">Overview of the student management system</p>
       </div>
+
+      {loadError ? (
+        <div className="mb-6 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium">Some data could not be loaded</p>
+            <p className="text-sm mt-1 text-amber-800">{loadError}</p>
+          </div>
+        </div>
+      ) : null}
 
       {/* Quick link: Forum */}
       <Card className="mb-6 border-accent-teal/30 bg-primary-dark/5">

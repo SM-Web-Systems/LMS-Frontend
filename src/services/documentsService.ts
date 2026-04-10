@@ -1,4 +1,5 @@
 import api, { getAuthToken } from './api';
+import { ApiRequestError, assertApiOk, assertApiSuccess, messageFromFailedFetchResponse } from '../utils/apiError';
 import {
   ApiResponse,
   CourseDocument,
@@ -18,22 +19,12 @@ export const documentsService = {
     const response = await api.get<ApiResponse<DocumentsResponse>>('/documents', {
       params,
     });
-
-    if (response.data.success && response.data.data) {
-      return response.data.data;
-    }
-
-    throw new Error(response.data.error?.message || 'Failed to fetch documents');
+    return assertApiSuccess(response, 'Could not load documents.');
   },
 
   async getById(id: string): Promise<CourseDocument> {
     const response = await api.get<ApiResponse<CourseDocument>>(`/documents/${id}`);
-
-    if (response.data.success && response.data.data) {
-      return response.data.data;
-    }
-
-    throw new Error(response.data.error?.message || 'Failed to fetch document');
+    return assertApiSuccess(response, 'Could not load that document.');
   },
 
   async create(data: CreateDocumentData): Promise<CourseDocument> {
@@ -42,36 +33,29 @@ export const documentsService = {
     formData.append('description', data.description);
     formData.append('category', data.category);
     formData.append('file', data.file);
+    if (data.courseIds !== undefined) {
+      formData.append('courseIds', JSON.stringify(data.courseIds));
+    }
 
     const response = await api.post<ApiResponse<CourseDocument>>('/documents', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
-
-    if (response.data.success && response.data.data) {
-      return response.data.data;
-    }
-
-    throw new Error(response.data.error?.message || 'Failed to upload document');
+    return assertApiSuccess(
+      response,
+      'Could not upload the document. Check file type and size, then try again.'
+    );
   },
 
   async update(id: string, data: UpdateDocumentData): Promise<CourseDocument> {
     const response = await api.put<ApiResponse<CourseDocument>>(`/documents/${id}`, data);
-
-    if (response.data.success && response.data.data) {
-      return response.data.data;
-    }
-
-    throw new Error(response.data.error?.message || 'Failed to update document');
+    return assertApiSuccess(response, 'Could not update the document.');
   },
 
   async delete(id: string): Promise<void> {
     const response = await api.delete<ApiResponse<void>>(`/documents/${id}`);
-
-    if (!response.data.success) {
-      throw new Error(response.data.error?.message || 'Failed to delete document');
-    }
+    assertApiOk(response, 'Could not delete the document.');
   },
 
   getDownloadUrl(id: string): string {
@@ -88,7 +72,8 @@ export const documentsService = {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to download file');
+      const msg = await messageFromFailedFetchResponse(response, 'Could not download the file.');
+      throw new ApiRequestError({ message: msg, status: response.status });
     }
 
     const blob = await response.blob();
@@ -109,12 +94,8 @@ export const documentsService = {
 
   async getCategories(): Promise<string[]> {
     const response = await api.get<ApiResponse<{ categories: string[] }>>('/documents/categories');
-
-    if (response.data.success && response.data.data) {
-      return response.data.data.categories;
-    }
-
-    return [];
+    const data = assertApiSuccess(response, 'Could not load document categories.');
+    return data.categories ?? [];
   },
 };
 
