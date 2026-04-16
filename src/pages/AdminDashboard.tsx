@@ -2,7 +2,8 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { Card, CardHeader, CardContent, CardTitle } from '../components/Card';
-import { Users, FileText, CheckCircle, Clock, XCircle, TrendingUp, Loader2, MessageCircle, AlertCircle } from 'lucide-react';
+import { Users, FileText, CheckCircle, Clock, XCircle, TrendingUp, MessageCircle, AlertCircle } from 'lucide-react';
+import { DashboardPageSkeleton } from '../components/PageSkeletons';
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -66,12 +67,7 @@ const AdminDashboard: React.FC = () => {
     .slice(0, 5);
 
   if (studentsLoading || submissionsLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
-        <span className="ml-2 text-gray-600">Loading dashboard...</span>
-      </div>
-    );
+    return <DashboardPageSkeleton variant="admin" />;
   }
 
   const loadError = [studentsError, submissionsError].filter(Boolean).join(' ');

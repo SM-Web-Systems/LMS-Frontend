@@ -14,11 +14,12 @@ import {
   File,
   FileImage,
   FileArchive,
-  Loader2,
   AlertCircle,
   BookOpen,
   X,
+  Loader2,
 } from 'lucide-react';
+import { DocumentsGridSkeleton } from '../components/PageSkeletons';
 
 const getFileIcon = (fileName: string) => {
   const ext = fileName.split('.').pop()?.toLowerCase();
@@ -186,12 +187,7 @@ const StudentDocuments: React.FC = () => {
       )}
 
       {/* Loading State */}
-      {loading && (
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
-          <span className="ml-2 text-gray-600">Loading documents...</span>
-        </div>
-      )}
+      {loading && <DocumentsGridSkeleton />}
 
       {/* Empty State */}
       {!loading && documents.length === 0 && (

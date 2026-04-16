@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { useData } from '../context/DataContext';
 import { Card, CardHeader, CardContent, CardTitle } from '../components/Card';
-import { FileText, Upload, CheckCircle, XCircle, Clock, Loader2, MessageCircle } from 'lucide-react';
+import { FileText, Upload, CheckCircle, XCircle, Clock, MessageCircle } from 'lucide-react';
+import { DashboardPageSkeleton } from '../components/PageSkeletons';
 
 const StudentDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -50,12 +51,7 @@ const StudentDashboard: React.FC = () => {
   ];
 
   if (submissionsLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
-        <span className="ml-2 text-gray-600">Loading dashboard...</span>
-      </div>
-    );
+    return <DashboardPageSkeleton variant="student" />;
   }
 
   if (submissionsError) {

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import Input, { TextArea } from '../components/Input';
@@ -15,6 +16,8 @@ import {
 } from 'lucide-react';
 import { documentsService } from '../services/documentsService';
 import { getErrorMessage } from '../utils/apiError';
+import { useAuth } from '../context/useAuth';
+import { AdminCoursePageSkeleton } from '../components/PageSkeletons';
 
 type ItemDraft = {
   tempId: string;
@@ -45,8 +48,39 @@ function newTempId(): string {
   return 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
 }
 
+const ADMIN_COURSE_STORAGE_KEY = 'lms:adminCourseEditor:';
+
+type AdminCourseStored = { mode: 'list' | 'new' | 'edit'; courseId?: string };
+
+function readAdminCourseStored(userId: string | undefined): AdminCourseStored | null {
+  try {
+    const raw = localStorage.getItem(ADMIN_COURSE_STORAGE_KEY + (userId ?? 'anon'));
+    if (!raw) return null;
+    const j = JSON.parse(raw) as { mode?: string; courseId?: string };
+    if (j.mode !== 'list' && j.mode !== 'new' && j.mode !== 'edit') return null;
+    return { mode: j.mode, courseId: typeof j.courseId === 'string' ? j.courseId : undefined };
+  } catch {
+    return null;
+  }
+}
+
+function writeAdminCourseStored(userId: string | undefined, data: AdminCourseStored) {
+  try {
+    localStorage.setItem(ADMIN_COURSE_STORAGE_KEY + (userId ?? 'anon'), JSON.stringify(data));
+  } catch {
+    /* ignore */
+  }
+}
+
 const AdminCourse: React.FC = () => {
+  const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const qNew = searchParams.get('new') === '1';
+  const qCourse = searchParams.get('course');
+  const skipNextUrlSync = useRef(false);
+
   const [courses, setCourses] = useState<Course[]>([]);
+  const [coursesLoading, setCoursesLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [courseTitle, setCourseTitle] = useState('');
   const [courseDescription, setCourseDescription] = useState('');
@@ -55,13 +89,21 @@ const AdminCourse: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [documents, setDocuments] = useState<{ id: string; title: string; category: string }[]>([]);
 
-  const loadCourses = () => {
-    courseService.fetchCourses().then(setCourses).catch(() => setCourses([]));
-  };
+  const loadCourses = useCallback((opts?: { silent?: boolean }) => {
+    const silent = opts?.silent ?? false;
+    if (!silent) setCoursesLoading(true);
+    courseService
+      .fetchCourses()
+      .then(setCourses)
+      .catch(() => setCourses([]))
+      .finally(() => {
+        if (!silent) setCoursesLoading(false);
+      });
+  }, []);
 
   useEffect(() => {
     loadCourses();
-  }, []);
+  }, [loadCourses]);
 
   useEffect(() => {
     documentsService.getAll().then((res) => {
@@ -106,6 +148,109 @@ const AdminCourse: React.FC = () => {
       }))
     );
   };
+
+  const applyNewDraftFromUrl = () => {
+    setEditingId(null);
+    setCourseTitle('');
+    setCourseDescription('');
+    setCourseCode('');
+    setWeeks([{ tempId: newTempId(), title: 'Week 1', order: 1, sections: [] }]);
+  };
+
+  const resetToCourseList = () => {
+    startNew();
+    skipNextUrlSync.current = true;
+    setSearchParams({}, { replace: true });
+    writeAdminCourseStored(user?.id, { mode: 'list' });
+  };
+
+  const openNewCourseForm = () => {
+    applyNewDraftFromUrl();
+    skipNextUrlSync.current = true;
+    setSearchParams({ new: '1' }, { replace: false });
+    writeAdminCourseStored(user?.id, { mode: 'new' });
+  };
+
+  const openEditCourseWithUrl = (course: Course) => {
+    startEdit(course);
+    skipNextUrlSync.current = true;
+    setSearchParams({ course: course.id }, { replace: false });
+    writeAdminCourseStored(user?.id, { mode: 'edit', courseId: course.id });
+  };
+
+  const coursesKey = useMemo(() => courses.map((c) => c.id).sort().join(','), [courses]);
+
+  useEffect(() => {
+    if (coursesLoading) return;
+    if (skipNextUrlSync.current) {
+      skipNextUrlSync.current = false;
+      return;
+    }
+
+    if (courses.length === 0) {
+      startNew();
+      if (qNew || qCourse) {
+        skipNextUrlSync.current = true;
+        setSearchParams({}, { replace: true });
+      }
+      writeAdminCourseStored(user?.id, { mode: 'list' });
+      return;
+    }
+
+    const stored = readAdminCourseStored(user?.id);
+
+    if (qNew) {
+      applyNewDraftFromUrl();
+      writeAdminCourseStored(user?.id, { mode: 'new' });
+      if (qCourse) {
+        skipNextUrlSync.current = true;
+        setSearchParams({ new: '1' }, { replace: true });
+      }
+      return;
+    }
+
+    if (qCourse && courses.some((c) => c.id === qCourse)) {
+      const c = courses.find((x) => x.id === qCourse)!;
+      startEdit(c);
+      writeAdminCourseStored(user?.id, { mode: 'edit', courseId: c.id });
+      if (qNew) {
+        skipNextUrlSync.current = true;
+        setSearchParams({ course: qCourse }, { replace: true });
+      }
+      return;
+    }
+
+    if (qCourse && !courses.some((c) => c.id === qCourse)) {
+      skipNextUrlSync.current = true;
+      setSearchParams({}, { replace: true });
+      startNew();
+      writeAdminCourseStored(user?.id, { mode: 'list' });
+      return;
+    }
+
+    if (!qNew && !qCourse && stored?.mode === 'edit' && stored.courseId && courses.some((c) => c.id === stored.courseId)) {
+      const c = courses.find((x) => x.id === stored.courseId)!;
+      startEdit(c);
+      skipNextUrlSync.current = true;
+      setSearchParams({ course: c.id }, { replace: true });
+      writeAdminCourseStored(user?.id, { mode: 'edit', courseId: c.id });
+      return;
+    }
+
+    if (!qNew && !qCourse && stored?.mode === 'new') {
+      applyNewDraftFromUrl();
+      skipNextUrlSync.current = true;
+      setSearchParams({ new: '1' }, { replace: true });
+      writeAdminCourseStored(user?.id, { mode: 'new' });
+      return;
+    }
+
+    if (!qNew && !qCourse) {
+      startNew();
+      writeAdminCourseStored(user?.id, { mode: 'list' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- URL/storage sync; startNew/startEdit intentionally omitted
+  }, [coursesLoading, coursesKey, qNew, qCourse, user?.id, setSearchParams]);
 
   const addWeek = () => {
     const order = weeks.length + 1;
@@ -267,8 +412,8 @@ const AdminCourse: React.FC = () => {
       } else {
         await courseService.createCourse(course);
       }
-      loadCourses();
-      startNew();
+      loadCourses({ silent: true });
+      resetToCourseList();
     } catch (e) {
       console.error(e);
       alert(getErrorMessage(e, 'Could not save the course.'));
@@ -281,8 +426,8 @@ const AdminCourse: React.FC = () => {
     if (!window.confirm('Delete this course? Students will no longer see it.')) return;
     try {
       await courseService.deleteCourse(id);
-      loadCourses();
-      if (editingId === id) startNew();
+      loadCourses({ silent: true });
+      if (editingId === id) resetToCourseList();
     } catch (e) {
       console.error(e);
       alert(getErrorMessage(e, 'Could not delete the course.'));
@@ -291,29 +436,27 @@ const AdminCourse: React.FC = () => {
 
   const showForm = editingId !== null || courseTitle !== '' || weeks.length > 0;
 
+  if (coursesLoading) {
+    return <AdminCoursePageSkeleton />;
+  }
+
   return (
     <div>
       <div className="mb-8 flex items-center">
         <BookOpen className="h-8 w-8 text-primary-600 mr-3 shrink-0" />
         <div>
           <h1 className="text-3xl font-bold text-neutral-800">Courses</h1>
-          <p className="text-neutral-600 mt-1">
-            Create and edit courses by week (Week 1, 2, 3…). Each week has sections with videos, links, and PDFs.
+          <p className="text-neutral-600 mt-1 max-w-prose">
+            Create and edit courses by week (Week 1, 2, 3…). Each week has sections with videos, links, and PDFs. Links use{' '}
+            <code className="text-sm bg-neutral-100 px-1 rounded">?course=…</code> to edit a course or{' '}
+            <code className="text-sm bg-neutral-100 px-1 rounded">?new=1</code> for a new draft (bookmarkable).
           </p>
         </div>
       </div>
 
       {!showForm ? (
         <>
-          <Button
-            className="mb-6"
-            onClick={() => {
-              setEditingId(null);
-              setCourseTitle('');
-              setCourseDescription('');
-              setWeeks([{ tempId: newTempId(), title: 'Week 1', order: 1, sections: [] }]);
-            }}
-          >
+          <Button className="mb-6" onClick={openNewCourseForm}>
             <Plus className="h-4 w-4 mr-2" />
             Create course
           </Button>
@@ -333,7 +476,7 @@ const AdminCourse: React.FC = () => {
                       </p>
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => startEdit(c)}>
+                      <Button variant="outline" size="sm" onClick={() => openEditCourseWithUrl(c)}>
                         <Pencil className="h-4 w-4 mr-1" />
                         Edit
                       </Button>
@@ -354,7 +497,7 @@ const AdminCourse: React.FC = () => {
               <h2 className="text-xl font-semibold text-neutral-800">
                 {editingId ? 'Edit course' : 'New course'}
               </h2>
-              <Button variant="outline" size="sm" onClick={startNew}>
+              <Button variant="outline" size="sm" onClick={resetToCourseList}>
                 <ArrowLeft className="h-4 w-4 mr-1" />
                 Cancel
               </Button>
@@ -511,7 +654,7 @@ const AdminCourse: React.FC = () => {
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   Save course
                 </Button>
-                <Button variant="outline" onClick={startNew}>Cancel</Button>
+                <Button variant="outline" onClick={resetToCourseList}>Cancel</Button>
               </div>
             </div>
           </CardContent>
