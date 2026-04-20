@@ -9,8 +9,15 @@ import type { Conversation, Message } from '../types/message';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import { TextArea } from '../components/Input';
-import { MessageCircle, Send, Plus, ArrowLeft, User, AlertCircle } from 'lucide-react';
+import { MessageCircle, Send, Plus, ArrowLeft, AlertCircle, Loader2 } from 'lucide-react';
 import { getErrorMessage } from '../utils/apiError';
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
 const Messages: React.FC = () => {
   const navigate = useNavigate();
@@ -184,111 +191,161 @@ const Messages: React.FC = () => {
 
   if (!userId) {
     return (
-      <div className="flex items-center justify-center min-h-[40vh]">
-        <p className="text-neutral-600">You must be signed in to view messages.</p>
+      <div className="flex items-center justify-center min-h-[40vh] rounded-xl border border-neutral-200/90 bg-white shadow-card">
+        <p className="text-neutral-600 px-6">You must be signed in to view messages.</p>
       </div>
     );
   }
 
+  const chatHeight = 'min-h-[420px] sm:min-h-[520px] lg:h-[min(560px,calc(100vh-14rem))]';
+
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <MessageCircle className="h-8 w-8 text-primary-600" />
+    <div className="pb-10">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-teal/15 text-accent-teal ring-1 ring-accent-teal/20">
+            <MessageCircle className="h-6 w-6" aria-hidden />
+          </span>
           <div>
-            <h1 className="text-3xl font-bold text-neutral-800">Messages</h1>
-            <p className="text-neutral-600 mt-0.5">Message anyone in your course(s).</p>
+            <h1 className="text-3xl font-bold text-neutral-800 tracking-tight">Messages</h1>
+            <p className="text-neutral-600 mt-1 max-w-xl leading-relaxed">
+              Direct messages with people who share a course with you. Start from the list or pick someone new.
+            </p>
           </div>
         </div>
-        {!showNewConversation && !selectedConversation && (
-          <Button onClick={() => setShowNewConversation(true)}>
-            <Plus className="h-4 w-4 mr-2" />
+        {!showNewConversation && !selectedConversation ? (
+          <Button onClick={() => setShowNewConversation(true)} className="shrink-0 self-start sm:self-center">
+            <Plus className="h-4 w-4 mr-2" aria-hidden />
             New conversation
           </Button>
-        )}
+        ) : null}
       </div>
 
       {pageError ? (
-        <div className="mb-4 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
-          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+        <div className="mb-5 flex gap-3 rounded-xl border border-amber-200/90 bg-amber-50/90 px-4 py-3 text-amber-950 shadow-sm">
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" aria-hidden />
           <div>
-            <p className="font-medium">Messaging may be limited</p>
-            <p className="text-sm mt-1">{pageError}</p>
+            <p className="font-semibold text-amber-950">Messaging may be limited</p>
+            <p className="text-sm mt-1 text-amber-900/90 leading-relaxed">{pageError}</p>
           </div>
         </div>
       ) : null}
 
       {actionError ? (
-        <div className="mb-4 flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+        <div className="mb-5 flex gap-2 rounded-xl border border-red-200/90 bg-red-50 px-4 py-3 text-sm text-red-900 shadow-sm">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
           <span>{actionError}</span>
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-1">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 lg:gap-6">
+        <Card className="lg:col-span-2 shadow-updraft overflow-hidden ring-1 ring-neutral-900/[0.04]">
           <CardContent className="p-0">
             {showNewConversation ? (
-              <div className="p-4 border-b border-neutral-200">
-                <Button variant="outline" size="sm" onClick={() => setShowNewConversation(false)} className="mb-3">
-                  <ArrowLeft className="h-4 w-4 mr-1" />
-                  Back
-                </Button>
-                <p className="text-sm font-medium text-neutral-700 mb-2">People in your course(s)</p>
-                {loading ? (
-                  <p className="text-sm text-neutral-500">Loading...</p>
-                ) : peers.length === 0 ? (
-                  <p className="text-sm text-neutral-500">
-                    No one else in your courses yet. Ask your admin to add you to a course, or to add others so you can message them.
-                  </p>
-                ) : (
-                  peers.map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => startConversationWith(p.id, p.name)}
-                      disabled={openingConversation}
-                      className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-neutral-50 text-left disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <User className="h-4 w-4 text-neutral-400 shrink-0" />
-                      <span className="text-neutral-800 truncate">{p.name}</span>
-                    </button>
-                  ))
-                )}
+              <div>
+                <div className="border-b border-neutral-200/90 bg-gradient-to-r from-accent-teal/[0.07] via-white to-neutral-50/90 px-4 py-3 sm:px-5">
+                  <Button variant="outline" size="sm" onClick={() => setShowNewConversation(false)} className="mb-3 border-neutral-200/90">
+                    <ArrowLeft className="h-4 w-4 mr-1" aria-hidden />
+                    Back to inbox
+                  </Button>
+                  <p className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">New message</p>
+                  <p className="text-sm font-semibold text-neutral-800 mt-0.5">People in your courses</p>
+                </div>
+                <div className="p-3 max-h-[min(360px,50vh)] lg:max-h-none overflow-y-auto">
+                  {loading ? (
+                    <div className="flex flex-col items-center py-10 text-neutral-500">
+                      <Loader2 className="h-7 w-7 animate-spin text-accent-teal mb-2" aria-hidden />
+                      <p className="text-sm">Loading people…</p>
+                    </div>
+                  ) : peers.length === 0 ? (
+                    <p className="text-sm text-neutral-600 leading-relaxed px-2 py-4">
+                      No one else in your courses yet. Ask your admin to enroll classmates so you can reach them here.
+                    </p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {peers.map((p) => (
+                        <li key={p.id}>
+                          <button
+                            type="button"
+                            onClick={() => startConversationWith(p.id, p.name)}
+                            disabled={openingConversation}
+                            className="w-full flex items-center gap-3 p-3 rounded-xl text-left border border-transparent hover:bg-neutral-50 hover:border-neutral-200/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <div
+                              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-100 to-primary-200/80 text-primary-dark text-xs font-bold ring-2 ring-white shadow-sm"
+                              aria-hidden
+                            >
+                              {initials(p.name)}
+                            </div>
+                            <span className="font-medium text-neutral-800 truncate">{p.name}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
             ) : (
               <>
-                <div className="p-3 border-b border-neutral-200 flex justify-between items-center">
-                  <span className="font-medium text-neutral-800">Conversations</span>
-                  <Button variant="outline" size="sm" onClick={() => setShowNewConversation(true)}>
-                    <Plus className="h-4 w-4" />
+                <div className="border-b border-neutral-200/90 bg-gradient-to-r from-accent-teal/[0.07] via-white to-neutral-50/90 px-4 py-3 sm:px-5 flex justify-between items-center gap-2">
+                  <div>
+                    <p className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">Inbox</p>
+                    <p className="text-sm font-semibold text-neutral-800">Conversations</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setShowNewConversation(true)} className="border-neutral-200/90 shrink-0" aria-label="Start new conversation">
+                    <Plus className="h-4 w-4" aria-hidden />
                   </Button>
                 </div>
-                <div className="max-h-[400px] overflow-y-auto">
+                <div className={`overflow-y-auto ${chatHeight} lg:max-h-[min(560px,calc(100vh-14rem))]`}>
                   {loading ? (
-                    <p className="p-4 text-sm text-neutral-500">Loading...</p>
+                    <div className="flex flex-col items-center py-12 text-neutral-500">
+                      <Loader2 className="h-7 w-7 animate-spin text-accent-teal mb-2" aria-hidden />
+                      <p className="text-sm">Loading conversations…</p>
+                    </div>
                   ) : conversations.length === 0 ? (
-                    <p className="p-4 text-sm text-neutral-500">No conversations yet. Start one above.</p>
+                    <div className="p-6 text-center">
+                      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100 text-neutral-400 mb-3">
+                        <MessageCircle className="h-6 w-6" aria-hidden />
+                      </div>
+                      <p className="text-sm text-neutral-600 leading-relaxed">
+                        No threads yet. Use <strong className="font-semibold text-neutral-800">New conversation</strong> to reach someone in your courses.
+                      </p>
+                    </div>
                   ) : (
-                    conversations.map((conv) => {
-                      const { otherUserName: name } = messageService.getOtherDisplayName(conv, userId, isAdmin);
-                      return (
-                        <button
-                          key={conv.id}
-                          onClick={() => openConversation(conv)}
-                          className={`w-full flex items-center gap-3 p-4 text-left border-b border-neutral-100 last:border-0 hover:bg-neutral-50 ${
-                            selectedConversation?.id === conv.id ? 'bg-primary-dark/5' : ''
-                          }`}
-                        >
-                          <div className="w-10 h-10 rounded-full bg-neutral-200 flex items-center justify-center shrink-0">
-                            <User className="h-5 w-5 text-neutral-600" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="font-medium text-neutral-800 truncate">{name}</p>
-                            <p className="text-xs text-neutral-500">{formatTime(conv.updatedAt)}</p>
-                          </div>
-                        </button>
-                      );
-                    })
+                    <ul>
+                      {conversations.map((conv) => {
+                        const { otherUserName: name } = messageService.getOtherDisplayName(conv, userId, isAdmin);
+                        const active = selectedConversation?.id === conv.id;
+                        return (
+                          <li key={conv.id} className="border-b border-neutral-100/90 last:border-0">
+                            <button
+                              type="button"
+                              onClick={() => openConversation(conv)}
+                              className={`w-full flex items-center gap-3 p-4 text-left transition-colors ${
+                                active
+                                  ? 'bg-accent-teal/[0.08] ring-inset ring-1 ring-accent-teal/25'
+                                  : 'hover:bg-neutral-50/90'
+                              }`}
+                            >
+                              <div
+                                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-bold shadow-sm ring-2 ring-white ${
+                                  active
+                                    ? 'bg-accent-teal text-white'
+                                    : 'bg-gradient-to-br from-primary-100 to-primary-200/80 text-primary-dark'
+                                }`}
+                                aria-hidden
+                              >
+                                {initials(name)}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className={`font-semibold truncate ${active ? 'text-primary-dark' : 'text-neutral-800'}`}>{name}</p>
+                                <p className="text-xs text-neutral-500 mt-0.5 tabular-nums">{formatTime(conv.updatedAt)}</p>
+                              </div>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
                   )}
                 </div>
               </>
@@ -296,67 +353,114 @@ const Messages: React.FC = () => {
           </CardContent>
         </Card>
 
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-3">
           {selectedConversation ? (
-            <Card className="flex flex-col h-[500px]">
+            <Card className={`flex flex-col ${chatHeight} shadow-updraft overflow-hidden ring-1 ring-neutral-900/[0.04]`}>
               <CardContent className="p-0 flex flex-col flex-1 min-h-0">
-                <div className="p-4 border-b border-neutral-200 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Button variant="outline" size="sm" onClick={() => setSelectedConversation(null)} className="lg:hidden shrink-0">
-                      <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                    <span className="font-semibold text-neutral-800 truncate">{otherUserName}</span>
-                  </div>
-                  {otherUserId && otherUserId !== '__admin__' && (
-                    <Button variant="outline" size="sm" onClick={() => navigate(user?.role === 'admin' ? `/admin/profile/${otherUserId}` : `/student/profile/${otherUserId}`)}>
-                      View profile
-                    </Button>
-                  )}
-                </div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                  {messages.map((m) => (
-                    <div
-                      key={m.id}
-                      className={`flex ${m.senderId === userId ? 'justify-end' : 'justify-start'}`}
+                <div className="border-b border-neutral-200/90 bg-gradient-to-r from-accent-teal/[0.08] via-white to-neutral-50/90 px-4 py-3 sm:px-5 flex items-center justify-between gap-3 shrink-0">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedConversation(null)}
+                      className="lg:hidden shrink-0 border-neutral-200/90"
+                      aria-label="Back to conversations"
                     >
-                      <div
-                        className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                          m.senderId === userId ? 'bg-accent-teal text-white' : 'bg-neutral-100 text-neutral-800'
-                        }`}
-                      >
-                        <p className="text-sm whitespace-pre-wrap">{m.body}</p>
-                        <p className={`text-xs mt-1 ${m.senderId === userId ? 'text-white/80' : 'text-neutral-500'}`}>
-                          {formatTime(m.createdAt)}
-                        </p>
-                      </div>
+                      <ArrowLeft className="h-4 w-4" aria-hidden />
+                    </Button>
+                    <div
+                      className="hidden sm:flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-100 to-primary-200/80 text-primary-dark text-xs font-bold ring-2 ring-white shadow-sm"
+                      aria-hidden
+                    >
+                      {initials(otherUserName)}
                     </div>
-                  ))}
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Chat with</p>
+                      <p className="font-semibold text-neutral-900 truncate">{otherUserName}</p>
+                    </div>
+                  </div>
+                  {otherUserId && otherUserId !== '__admin__' ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 border-neutral-200/90"
+                      onClick={() =>
+                        navigate(user?.role === 'admin' ? `/admin/profile/${otherUserId}` : `/student/profile/${otherUserId}`)
+                      }
+                    >
+                      Profile
+                    </Button>
+                  ) : null}
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 bg-neutral-50/40 bg-[length:24px_24px] bg-[linear-gradient(to_right,rgb(15_26_31/0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgb(15_26_31/0.03)_1px,transparent_1px)]">
+                  {messages.map((m) => {
+                    const mine = m.senderId === userId;
+                    return (
+                      <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                        <div
+                          className={`max-w-[min(100%,28rem)] rounded-2xl px-4 py-2.5 shadow-sm ${
+                            mine
+                              ? 'rounded-br-md bg-accent-teal text-white'
+                              : 'rounded-bl-md bg-white text-neutral-800 border border-neutral-200/90 ring-1 ring-neutral-900/[0.04]'
+                          }`}
+                        >
+                          <p className="text-sm whitespace-pre-wrap leading-relaxed">{m.body}</p>
+                          <p
+                            className={`text-[11px] mt-1.5 tabular-nums ${mine ? 'text-white/75' : 'text-neutral-500'}`}
+                          >
+                            {formatTime(m.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
                   <div ref={messagesEndRef} />
                 </div>
-                <div className="p-4 border-t border-neutral-200">
-                  <div className="flex gap-2">
+                <div className="p-4 sm:p-5 border-t border-neutral-200/90 bg-white shrink-0">
+                  <div className="flex gap-2 items-end rounded-xl border border-neutral-200/90 bg-neutral-50/50 p-2 ring-1 ring-neutral-900/[0.03] focus-within:ring-2 focus-within:ring-accent-teal/25 focus-within:border-accent-teal/30">
                     <TextArea
-                      placeholder="Type a message..."
+                      placeholder="Write a message…"
                       value={newMessageBody}
                       onChange={(e) => setNewMessageBody(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSend();
+                        }
                       }}
                       rows={2}
-                      className="flex-1 resize-none"
+                      className="flex-1 resize-none border-0 bg-transparent shadow-none focus:ring-0 px-2 py-1.5"
                     />
-                    <Button onClick={handleSend} disabled={sending || !newMessageBody.trim()}>
-                      <Send className="h-4 w-4" />
+                    <Button
+                      onClick={handleSend}
+                      disabled={sending || !newMessageBody.trim()}
+                      className="shrink-0 h-10 w-10 sm:h-auto sm:w-auto sm:px-4 p-0 sm:gap-2 rounded-lg"
+                      aria-label="Send message"
+                    >
+                      {sending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />}
                     </Button>
                   </div>
+                  <p className="text-[11px] text-neutral-500 mt-2 px-0.5">Enter to send · Shift+Enter for a new line</p>
                 </div>
               </CardContent>
             </Card>
           ) : (
-            <Card className="h-[500px] flex items-center justify-center">
-              <CardContent className="text-center text-neutral-500">
-                <MessageCircle className="h-12 w-12 mx-auto mb-3 text-neutral-300" />
-                <p>{openingConversation ? 'Opening conversation...' : 'Select a conversation or start a new one.'}</p>
+            <Card className={`${chatHeight} flex items-center justify-center shadow-updraft ring-1 ring-neutral-900/[0.04] border-dashed`}>
+              <CardContent className="text-center px-6 py-10 max-w-sm">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-teal/10 text-accent-teal mb-4 ring-1 ring-accent-teal/20">
+                  <MessageCircle className="h-7 w-7" aria-hidden />
+                </div>
+                <p className="font-semibold text-neutral-800">
+                  {openingConversation ? 'Opening conversation…' : 'Your inbox is ready'}
+                </p>
+                <p className="text-sm text-neutral-600 mt-2 leading-relaxed">
+                  {openingConversation
+                    ? 'Hang tight while we load the thread.'
+                    : 'Choose a conversation on the left, or start a new one with someone in your courses.'}
+                </p>
+                {openingConversation ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-accent-teal mx-auto mt-4" aria-hidden />
+                ) : null}
               </CardContent>
             </Card>
           )}

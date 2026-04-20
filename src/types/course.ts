@@ -6,11 +6,14 @@ export interface CourseItemBase {
   id: string;
   title: string;
   order?: number;
+  /** Shown above the embedded resource in the student viewer (pre-context from the instructor). */
+  information?: string;
 }
 
 export interface CourseItemVideo extends CourseItemBase {
   type: 'video';
-  url: string; // YouTube or other embed URL
+  /** YouTube (watch or embed) URL, or a direct file URL e.g. .mp4 / .webm for native playback */
+  url: string;
   description?: string;
 }
 

@@ -9,7 +9,7 @@ interface CardProps {
 export const Card: React.FC<CardProps> = ({ children, className = '', onClick }) => {
   return (
     <div
-      className={`bg-white rounded-lg shadow-card border border-neutral-200 ${className}`}
+      className={`bg-white rounded-xl shadow-card border border-neutral-200/90 ring-1 ring-neutral-900/[0.04] ${className}`}
       onClick={onClick}
       role={onClick ? 'button' : undefined}
     >

@@ -6,6 +6,8 @@ export interface QuizQuestion {
   id: string;
   type: QuestionType;
   question: string;
+  /** Optional context shown to students while answering (like course material “Information”). */
+  information?: string;
   /** For multiple_choice: array of options; correct one(s) indicated by correctIndex or correctOption */
   options?: string[];
   correctIndex?: number;
@@ -18,6 +20,8 @@ export interface Quiz {
   id: string;
   title: string;
   description?: string;
+  /** Extra student-facing context on the intro screen (instructions, how to prepare). */
+  information?: string;
   /** Optional link to course (e.g. course id) */
   courseId?: string;
   questions: QuizQuestion[];

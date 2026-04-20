@@ -8,10 +8,17 @@ import type { Course } from '../types/course';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
-import { Users, MessageCircle, User as UserIcon, Plus, Trash2, KeyRound } from 'lucide-react';
+import { Users, MessageCircle, Plus, Trash2, KeyRound, Info, Loader2, GraduationCap } from 'lucide-react';
 import { getErrorMessage } from '../utils/apiError';
 
 type Member = { id: string; name: string; email: string };
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
 const CourseMembers: React.FC = () => {
   const navigate = useNavigate();
@@ -144,29 +151,46 @@ const CourseMembers: React.FC = () => {
   const basePath = user?.role === 'admin' ? '/admin' : '/student';
 
   return (
-    <div>
-      <div className="mb-8 flex items-center gap-3">
-        <Users className="h-8 w-8 text-primary-600" />
-        <div>
-          <h1 className="text-3xl font-bold text-neutral-800">Course members</h1>
-          <p className="text-neutral-600 mt-0.5">
-            {isAdmin ? 'See who is in each course and manage members.' : 'See who is in your courses and message them.'}
-          </p>
+    <div className="pb-10">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-teal/15 text-accent-teal ring-1 ring-accent-teal/20">
+            <Users className="h-6 w-6" aria-hidden />
+          </span>
+          <div>
+            <h1 className="text-3xl font-bold text-neutral-800 tracking-tight">Course members</h1>
+            <p className="text-neutral-600 mt-1 max-w-2xl leading-relaxed">
+              {isAdmin
+                ? 'Roster and access for each course. Add people from your directory or adjust course codes for a member.'
+                : 'Everyone enrolled with you. Reach out or open a profile from here.'}
+            </p>
+          </div>
         </div>
       </div>
 
       {loading ? (
-        <Card>
-          <CardContent className="p-8 text-center text-neutral-600">Loading…</CardContent>
-        </Card>
+        <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-neutral-200/90 bg-white shadow-card">
+          <Loader2 className="h-9 w-9 animate-spin text-accent-teal" aria-hidden />
+          <p className="mt-3 text-sm text-neutral-600">Loading courses and rosters…</p>
+        </div>
       ) : coursesToShow.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center text-neutral-600">
-            {isAdmin ? 'No courses yet. Create one from the Course tab.' : "You don't have access to any courses yet. Your admin can assign you course codes or add you to a course."}
+        <Card className="shadow-updraft overflow-hidden">
+          <div className="border-b border-neutral-200/90 bg-gradient-to-r from-primary-50/90 via-white to-neutral-50/80 px-6 py-4">
+            <div className="flex items-center gap-2 text-primary-dark">
+              <GraduationCap className="h-5 w-5 text-accent-teal shrink-0" aria-hidden />
+              <p className="text-sm font-semibold">No courses to show</p>
+            </div>
+          </div>
+          <CardContent className="p-8 text-center">
+            <p className="text-neutral-600 max-w-md mx-auto leading-relaxed">
+              {isAdmin
+                ? 'Create a course from the Course tab, then return here to add members.'
+                : "You don't have access to any courses yet. Your admin can assign course codes or add you to a roster."}
+            </p>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-8">
           {coursesToShow.map((course) => {
             const members = getMembersForCourse(course.id);
             const isManaging = managingCourseId === course.id;
@@ -174,74 +198,131 @@ const CourseMembers: React.FC = () => {
             const availableUsers = allUsers.filter((u) => !memberIds.has(u.id));
 
             return (
-              <Card key={course.id}>
-                <CardContent className="p-6">
-                  <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-                    <div>
-                      <h2 className="text-xl font-semibold text-neutral-800">{course.title}</h2>
-                      {course.courseCode && (
-                        <p className="text-sm text-neutral-500 mt-0.5">Code: {course.courseCode}</p>
-                      )}
+              <Card key={course.id} className="shadow-updraft overflow-hidden ring-1 ring-neutral-900/[0.04]">
+                <div className="border-b border-neutral-200/90 bg-gradient-to-r from-accent-teal/[0.07] via-white to-neutral-50/90 px-5 py-4 sm:px-6 sm:py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0 flex items-start gap-3">
+                      <span className="hidden sm:flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/80 text-accent-teal shadow-sm ring-1 ring-neutral-200/80">
+                        <GraduationCap className="h-5 w-5" aria-hidden />
+                      </span>
+                      <div className="min-w-0">
+                        <h2 className="text-lg sm:text-xl font-semibold text-neutral-800 truncate">{course.title}</h2>
+                        {course.courseCode ? (
+                          <p className="text-sm text-neutral-500 mt-0.5">
+                            Code{' '}
+                            <span className="font-mono text-neutral-700 bg-white/70 px-1.5 py-0.5 rounded-md ring-1 ring-neutral-200/80">
+                              {course.courseCode}
+                            </span>
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
                     {isAdmin && (
                       <Button
-                        variant="outline"
+                        variant={isManaging ? 'primary' : 'outline'}
                         size="sm"
+                        className="shrink-0"
                         onClick={() => setManagingCourseId(isManaging ? null : course.id)}
                       >
-                        {isManaging ? 'Done' : 'Manage members'}
+                        {isManaging ? 'Done adding' : 'Manage members'}
                       </Button>
                     )}
                   </div>
+                </div>
+                <CardContent className="p-5 sm:p-6 space-y-5">
                   {isManaging && availableUsers.length > 0 && (
-                    <div className="mb-4 p-3 bg-neutral-50 rounded-lg">
-                      <p className="text-sm font-medium text-neutral-700 mb-2">Add to course</p>
-                      <div className="flex flex-wrap gap-2">
-                        {availableUsers.map((u) => (
-                          <Button
-                            key={u.id}
-                            variant="outline"
-                            size="sm"
-                            onClick={() => addMemberToCourse(course.id, u)}
-                          >
-                            <Plus className="h-3 w-3 mr-1" />
-                            {u.name} <span className="ml-1 text-xs text-neutral-400">({u.role})</span>
-                          </Button>
-                        ))}
+                    <div className="rounded-xl border border-sky-200/80 bg-sky-50/60 px-4 py-4 sm:px-5 ring-1 ring-sky-900/[0.04]">
+                      <div className="flex gap-3 items-start">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent-teal/15 text-accent-teal">
+                          <Info className="h-5 w-5" aria-hidden />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">Add to this course</p>
+                          <p className="text-sm text-neutral-700 mt-1 leading-relaxed">
+                            Tap a person to enroll them immediately. They must already exist in your user directory.
+                          </p>
+                          <div className="flex flex-wrap gap-2 mt-3">
+                            {availableUsers.map((u) => (
+                              <Button
+                                key={u.id}
+                                variant="outline"
+                                size="sm"
+                                className="border-neutral-200/90 bg-white/90 hover:bg-white shadow-sm"
+                                onClick={() => addMemberToCourse(course.id, u)}
+                              >
+                                <Plus className="h-3.5 w-3.5 mr-1 text-accent-teal" aria-hidden />
+                                <span className="font-medium">{u.name}</span>
+                                <span className="ml-1.5 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-800">
+                                  {u.role}
+                                </span>
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
+                  {isManaging && availableUsers.length === 0 && allUsers.length > 0 ? (
+                    <p className="text-sm text-neutral-600 rounded-lg border border-neutral-200/80 bg-neutral-50/80 px-4 py-3">
+                      Everyone in the directory is already in this course, or there are no other users to add.
+                    </p>
+                  ) : null}
                   {members.length === 0 ? (
-                    <p className="text-sm text-neutral-500">No members yet.{isAdmin && ' Use "Manage members" to add people.'}</p>
+                    <p className="text-sm text-neutral-600 rounded-lg border border-dashed border-neutral-300/90 bg-neutral-50/50 px-4 py-6 text-center">
+                      No members yet.
+                      {isAdmin ? ' Use “Manage members” to add people from the directory.' : ''}
+                    </p>
                   ) : (
                     <ul className="space-y-2">
                       {members.map((m) => (
                         <li
                           key={m.id}
-                          className="flex items-center justify-between gap-2 py-2 border-b border-neutral-100 last:border-0"
+                          className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-neutral-200/90 bg-white px-4 py-3 shadow-sm ring-1 ring-neutral-900/[0.03] hover:shadow-md hover:ring-neutral-900/[0.05] transition-shadow"
                         >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <UserIcon className="h-4 w-4 text-neutral-400 shrink-0" />
-                            <span className="font-medium text-neutral-800 truncate">{m.name}</span>
-                            {m.id === userId && <span className="text-xs text-neutral-500">(you)</span>}
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-100 to-primary-200/80 text-primary-dark text-xs font-bold ring-2 ring-white shadow-sm"
+                              aria-hidden
+                            >
+                              {initials(m.name)}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-semibold text-neutral-800 truncate">{m.name}</span>
+                                {m.id === userId ? (
+                                  <span className="text-[10px] font-semibold uppercase tracking-wide text-accent-teal bg-accent-teal/10 px-2 py-0.5 rounded-full">
+                                    You
+                                  </span>
+                                ) : null}
+                              </div>
+                              {m.email ? (
+                                <p className="text-xs text-neutral-500 truncate mt-0.5">{m.email}</p>
+                              ) : null}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex flex-wrap items-center gap-2 sm:justify-end shrink-0">
                             {m.id !== userId && (
                               <>
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => navigate(`${basePath}/messages`, { state: { openUserId: m.id, openUserName: m.name } })}
+                                  className="border-neutral-200/90"
+                                  onClick={() =>
+                                    navigate(`${basePath}/messages`, {
+                                      state: { openUserId: m.id, openUserName: m.name },
+                                    })
+                                  }
                                 >
-                                  <MessageCircle className="h-3 w-3 mr-1" />
+                                  <MessageCircle className="h-3.5 w-3.5 mr-1" aria-hidden />
                                   Message
                                 </Button>
                                 <Button
                                   variant="outline"
                                   size="sm"
+                                  className="border-neutral-200/90"
                                   onClick={() => navigate(`${basePath}/profile/${m.id}`)}
                                 >
-                                  View profile
+                                  Profile
                                 </Button>
                               </>
                             )}
@@ -250,19 +331,20 @@ const CourseMembers: React.FC = () => {
                                 <Button
                                   variant="outline"
                                   size="sm"
+                                  className="border-neutral-200/90"
                                   onClick={() => openEditCodes(m.id, m.name)}
                                   title="Edit course codes"
                                 >
-                                  <KeyRound className="h-3 w-3 mr-1" />
+                                  <KeyRound className="h-3.5 w-3.5 mr-1" aria-hidden />
                                   Codes
                                 </Button>
                                 <Button
                                   variant="outline"
                                   size="sm"
                                   onClick={() => removeMemberFromCourse(course.id, m.id)}
-                                  className="text-red-600 hover:bg-red-50"
+                                  className="text-red-600 border-red-200/90 hover:bg-red-50"
                                 >
-                                  <Trash2 className="h-3 w-3" />
+                                  <Trash2 className="h-3.5 w-3.5" aria-hidden />
                                 </Button>
                               </>
                             )}
@@ -284,29 +366,37 @@ const CourseMembers: React.FC = () => {
         title="Course codes"
       >
         <div className="space-y-4">
-          <p className="text-sm text-neutral-600">
-            Select which course codes <strong>{editingCodesName}</strong> can access. They will see only courses and resources for these codes.
-          </p>
-          <div className="space-y-2 max-h-60 overflow-y-auto">
+          <div className="rounded-lg border border-sky-200/70 bg-sky-50/50 px-3 py-3 text-sm text-neutral-700 leading-relaxed">
+            Select which codes <strong className="text-neutral-900">{editingCodesName}</strong> can use. Course content
+            and resources filter by these codes.
+          </div>
+          <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
             {allCourseCodes.length === 0 ? (
-              <p className="text-sm text-neutral-500">No course codes yet. Create courses with codes in the Course tab.</p>
+              <p className="text-sm text-neutral-500 py-2">No course codes yet. Add codes when you create courses.</p>
             ) : (
               allCourseCodes.map((code) => (
-                <label key={code} className="flex items-center gap-2 cursor-pointer">
+                <label
+                  key={code}
+                  className="flex items-center gap-3 cursor-pointer rounded-lg border border-neutral-200/90 bg-white px-3 py-2.5 hover:bg-neutral-50/90 has-[:checked]:border-accent-teal/40 has-[:checked]:bg-accent-teal/[0.04]"
+                >
                   <input
                     type="checkbox"
                     checked={draftCourseCodes.includes(code)}
                     onChange={() => toggleDraftCode(code)}
-                    className="rounded border-neutral-300 text-primary-600"
+                    className="rounded border-neutral-300 text-accent-teal focus:ring-accent-teal"
                   />
-                  <span className="font-medium text-neutral-800">{code}</span>
+                  <span className="font-medium text-neutral-800 font-mono text-sm">{code}</span>
                 </label>
               ))
             )}
           </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setEditingCodesForId(null)}>Cancel</Button>
-            <Button onClick={saveCourseCodes} disabled={savingCodes}>{savingCodes ? 'Saving…' : 'Save'}</Button>
+          <div className="flex justify-end gap-2 pt-2 border-t border-neutral-200/80">
+            <Button variant="outline" onClick={() => setEditingCodesForId(null)}>
+              Cancel
+            </Button>
+            <Button onClick={saveCourseCodes} disabled={savingCodes}>
+              {savingCodes ? 'Saving…' : 'Save access'}
+            </Button>
           </div>
         </div>
       </Modal>

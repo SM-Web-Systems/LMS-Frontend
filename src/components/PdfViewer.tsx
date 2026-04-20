@@ -11,16 +11,22 @@ interface PdfViewerProps {
 
 export const PdfViewer: React.FC<PdfViewerProps> = ({ title, src, className = '' }) => {
   return (
-    <div className={`rounded-lg border border-neutral-200 bg-neutral-50 overflow-hidden ${className}`}>
-      <div className="px-3 py-2 border-b border-neutral-200 bg-white">
-        <h4 className="text-sm font-medium text-neutral-800">{title}</h4>
+    <div
+      className={`rounded-xl border border-neutral-200/90 bg-white shadow-card ring-1 ring-neutral-900/5 overflow-hidden ${className}`}
+    >
+      <div className="lms-embed-chrome-header">
+        <h4 className="text-sm font-semibold text-neutral-800 tracking-tight">{title}</h4>
       </div>
-      <div className="h-[min(70vh,600px)] w-full overflow-auto">
-        <iframe
-          title={title}
-          src={src}
-          className="w-full h-full min-h-[600px] border-0"
-        />
+      <div className="lms-embed-viewport--pdf h-[min(70vh,600px)] w-full overflow-auto">
+        {/* object + iframe: better PDF inline behavior across browsers (Academy-style embedded doc). */}
+        <object
+          data={src}
+          type="application/pdf"
+          className="w-full h-full min-h-[600px] border-0 block bg-white"
+          aria-label={title}
+        >
+          <iframe title={title} src={src} className="lms-embed-iframe--pdf" />
+        </object>
       </div>
     </div>
   );

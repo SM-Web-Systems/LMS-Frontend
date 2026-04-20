@@ -61,6 +61,19 @@ export default {
       boxShadow: {
         'sm': '0 1px 2px 0 rgb(0 0 0 / 0.05)',
         'card': '0 1px 3px rgb(0 0 0 / 0.08), 0 1px 2px rgb(0 0 0 / 0.06)',
+        /** Course-platform depth (Updraft-style cards) */
+        'updraft': '0 4px 24px rgb(15 26 31 / 0.06), 0 1px 3px rgb(15 26 31 / 0.04)',
+        'updraft-hover': '0 12px 40px rgb(15 26 31 / 0.1), 0 4px 12px rgb(15 26 31 / 0.06)',
+      },
+      maxWidth: {
+        '8xl': '88rem',
+      },
+      backgroundImage: {
+        'grid-faint':
+          'linear-gradient(to right, rgb(15 26 31 / 0.04) 1px, transparent 1px), linear-gradient(to bottom, rgb(15 26 31 / 0.04) 1px, transparent 1px)',
+      },
+      backgroundSize: {
+        grid: '48px 48px',
       },
     },
   },

@@ -7,7 +7,7 @@ import { courseService } from '../services/courseService';
 import type { Quiz, QuizQuestion } from '../types/quiz';
 import type { Course } from '../types/course';
 import { ClipboardList, Plus, Trash2, Pencil, ArrowLeft, Loader2, GripVertical, AlertCircle } from 'lucide-react';
-import { getErrorMessage } from '../utils/apiError';
+import { ApiRequestError, getErrorMessage } from '../utils/apiError';
 
 function newTempId(): string {
   return 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
@@ -17,6 +17,7 @@ type QuestionDraft = {
   tempId: string;
   type: 'multiple_choice' | 'short_answer';
   question: string;
+  information: string;
   options: string[];
   correctIndex: number;
   correctAnswer: string;
@@ -29,6 +30,7 @@ const AdminQuizzes: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [quizInformation, setQuizInformation] = useState('');
   const [courseId, setCourseId] = useState('');
   const [passingScore, setPassingScore] = useState(70);
   const [questions, setQuestions] = useState<QuestionDraft[]>([]);
@@ -60,16 +62,26 @@ const AdminQuizzes: React.FC = () => {
     setEditingId(null);
     setTitle('');
     setDescription('');
+    setQuizInformation('');
     setCourseId('');
     setPassingScore(70);
     setQuestions([]);
+    setFormError(null);
     setShowForm(true);
+  };
+
+  /** Close form and clear edit mode so Cancel cannot leave a stale editingId (PUT to wrong/missing quiz). */
+  const closeForm = () => {
+    setShowForm(false);
+    setEditingId(null);
+    setFormError(null);
   };
 
   const startEdit = (quiz: Quiz) => {
     setEditingId(quiz.id);
     setTitle(quiz.title);
     setDescription(quiz.description || '');
+    setQuizInformation(quiz.information || '');
     setCourseId(quiz.courseId || '');
     setPassingScore(quiz.passingScore ?? 70);
     setQuestions(
@@ -77,6 +89,7 @@ const AdminQuizzes: React.FC = () => {
         tempId: q.id,
         type: q.type,
         question: q.question,
+        information: q.information || '',
         options: q.options || [],
         correctIndex: q.correctIndex ?? 0,
         correctAnswer: q.correctAnswer || '',
@@ -93,6 +106,7 @@ const AdminQuizzes: React.FC = () => {
         tempId: newTempId(),
         type: 'multiple_choice',
         question: '',
+        information: '',
         options: ['', ''],
         correctIndex: 0,
         correctAnswer: '',
@@ -141,10 +155,12 @@ const AdminQuizzes: React.FC = () => {
     setSaving(true);
     setFormError(null);
     try {
+      const editingKey = editingId?.trim() || '';
       const quiz: Quiz = {
-        id: editingId || quizService.generateId(),
+        id: editingKey || quizService.generateId(),
         title: title.trim(),
         description: description.trim() || undefined,
+        information: quizInformation.trim() || undefined,
         courseId: courseId.trim() || undefined,
         passingScore: passingScore,
         questions: questions.map((q, i) => {
@@ -153,6 +169,7 @@ const AdminQuizzes: React.FC = () => {
             type: q.type,
             question: q.question.trim(),
             order: i + 1,
+            ...(q.information?.trim() ? { information: q.information.trim() } : {}),
           };
           if (q.type === 'multiple_choice') {
             base.options = q.options.filter((o) => o.trim());
@@ -162,15 +179,27 @@ const AdminQuizzes: React.FC = () => {
           }
           return base;
         }),
-        createdAt: editingId ? (quizzes.find((q) => q.id === editingId)?.createdAt ?? new Date().toISOString()) : new Date().toISOString(),
+        createdAt: editingKey
+          ? (quizzes.find((q) => q.id === editingKey)?.createdAt ?? new Date().toISOString())
+          : new Date().toISOString(),
       };
-      await quizService.save(quiz);
+      await quizService.save(quiz, editingKey ? 'update' : 'create');
       const list = await quizService.getAll();
       setQuizzes(list);
-      setShowForm(false);
+      closeForm();
       startNew();
     } catch (e) {
-      setFormError(getErrorMessage(e, 'Could not save the quiz.'));
+      let message = getErrorMessage(e, 'Could not save the quiz.');
+      if (e instanceof ApiRequestError && e.status === 404) {
+        try {
+          const list = await quizService.getAll();
+          setQuizzes(list);
+          message = `${message} The quiz list was refreshed in case this quiz no longer exists on the server.`;
+        } catch {
+          /* keep existing list */
+        }
+      }
+      setFormError(message);
     } finally {
       setSaving(false);
     }
@@ -243,7 +272,7 @@ const AdminQuizzes: React.FC = () => {
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold text-neutral-800">{editingId ? 'Edit quiz' : 'New quiz'}</h2>
-              <Button variant="outline" size="sm" onClick={() => setShowForm(false)}>
+              <Button variant="outline" size="sm" onClick={closeForm}>
                 <ArrowLeft className="h-4 w-4 mr-1" />
                 Cancel
               </Button>
@@ -259,6 +288,13 @@ const AdminQuizzes: React.FC = () => {
             <div className="space-y-6">
               <Input label="Quiz title" placeholder="e.g. Week 1 Knowledge Check" value={title} onChange={(e) => setTitle(e.target.value)} />
               <TextArea label="Description (optional)" placeholder="Brief description" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
+              <TextArea
+                label="Student information (optional)"
+                placeholder="Instructions or context shown on the quiz intro (before questions), e.g. how long it takes or what to review."
+                value={quizInformation}
+                onChange={(e) => setQuizInformation(e.target.value)}
+                rows={3}
+              />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-1">Course (optional)</label>
@@ -314,6 +350,13 @@ const AdminQuizzes: React.FC = () => {
                             value={q.question}
                             onChange={(e) => updateQuestion(q.tempId, { question: e.target.value })}
                           />
+                          <TextArea
+                            placeholder="Optional: information for students (hint, reading, context) while they answer this question"
+                            value={q.information}
+                            onChange={(e) => updateQuestion(q.tempId, { information: e.target.value })}
+                            rows={2}
+                            className="text-sm"
+                          />
                           {q.type === 'multiple_choice' && (
                             <div className="space-y-2">
                               <p className="text-sm font-medium text-neutral-600">Options (select correct one)</p>
@@ -366,7 +409,7 @@ const AdminQuizzes: React.FC = () => {
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   Save quiz
                 </Button>
-                <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+                <Button variant="outline" onClick={closeForm}>Cancel</Button>
               </div>
             </div>
           </CardContent>

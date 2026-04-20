@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { ClerkProvider } from '@clerk/clerk-react'
+import { ThemeProvider } from 'next-themes'
 import App from './App.tsx'
 import './index.css'
 
@@ -16,7 +17,9 @@ if (!clerkPubKey) {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ClerkProvider publishableKey={clerkPubKey}>
-      <App />
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+        <App />
+      </ThemeProvider>
     </ClerkProvider>
   </React.StrictMode>,
 )

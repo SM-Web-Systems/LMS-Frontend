@@ -9,33 +9,47 @@ export const quizService = {
 
   async getById(id: string): Promise<Quiz | null> {
     try {
-      const res = await api.get<{ success: boolean; data: Quiz }>(`/quizzes/${id}`);
+      const qid = String(id).trim();
+      if (!qid) return null;
+      const res = await api.get<{ success: boolean; data: Quiz }>(`/quizzes/${encodeURIComponent(qid)}`);
       return res.data?.data ?? null;
     } catch {
       return null;
     }
   },
 
-  async save(quiz: Quiz): Promise<Quiz> {
+  /** `create` must be used for new quizzes: they still carry a client `id` for questions, but must POST not PUT. */
+  async save(quiz: Quiz, mode: 'create' | 'update'): Promise<Quiz> {
+    const id = quiz.id != null ? String(quiz.id).trim() : '';
     const payload = {
-      id: quiz.id || undefined,
+      id: id || undefined,
       title: quiz.title,
       description: quiz.description,
+      information: quiz.information,
       courseId: quiz.courseId,
       passingScore: quiz.passingScore,
       questions: quiz.questions,
     };
 
-    if (quiz.id) {
-      const res = await api.put<{ success: boolean; data: Quiz }>(`/quizzes/${quiz.id}`, payload);
+    if (mode === 'update') {
+      if (!id) {
+        throw new Error('Quiz id is required to update a quiz');
+      }
+      const res = await api.put<{ success: boolean; data: Quiz }>(
+        `/quizzes/${encodeURIComponent(id)}`,
+        payload
+      );
       return res.data.data;
     }
+
     const res = await api.post<{ success: boolean; data: Quiz }>('/quizzes', payload);
     return res.data.data;
   },
 
   async delete(id: string): Promise<void> {
-    await api.delete(`/quizzes/${id}`);
+    const qid = String(id).trim();
+    if (!qid) throw new Error('Quiz id is required');
+    await api.delete(`/quizzes/${encodeURIComponent(qid)}`);
   },
 
   async getCompletionsForUser(userId: string): Promise<QuizCompletion[]> {
@@ -44,12 +58,20 @@ export const quizService = {
   },
 
   async getCompletion(quizId: string, userId: string): Promise<QuizCompletion | null> {
-    const res = await api.get<{ success: boolean; data: QuizCompletion | null }>(`/quizzes/${quizId}/completion`, { params: { userId } });
+    const qid = String(quizId).trim();
+    const res = await api.get<{ success: boolean; data: QuizCompletion | null }>(
+      `/quizzes/${encodeURIComponent(qid)}/completion`,
+      { params: { userId } }
+    );
     return res.data?.data ?? null;
   },
 
   async submitQuiz(quizId: string, _userId: string, answers: Record<string, string>): Promise<QuizCompletion> {
-    const res = await api.post<{ success: boolean; data: QuizCompletion }>(`/quizzes/${quizId}/submit`, { answers });
+    const qid = String(quizId).trim();
+    const res = await api.post<{ success: boolean; data: QuizCompletion }>(
+      `/quizzes/${encodeURIComponent(qid)}/submit`,
+      { answers }
+    );
     return res.data.data;
   },
 

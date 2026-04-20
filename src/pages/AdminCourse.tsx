@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   Loader2,
   GripVertical,
+  Upload,
 } from 'lucide-react';
 import { documentsService } from '../services/documentsService';
 import { getErrorMessage } from '../utils/apiError';
@@ -27,6 +28,8 @@ type ItemDraft = {
   url?: string;
   documentId?: string;
   fileUrl?: string;
+  /** Shown above the resource in the student viewer. */
+  information?: string;
 };
 
 type SectionDraft = {
@@ -46,6 +49,21 @@ type WeekDraft = {
 
 function newTempId(): string {
   return 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+}
+
+function pickDocumentUploadCategory(categories: string[]): string {
+  const preferred = [
+    'Reference Materials',
+    'Lecture Notes',
+    'Course Materials',
+    'Tutorials',
+    'Study Guides',
+    'Other',
+  ];
+  for (const p of preferred) {
+    if (categories.includes(p)) return p;
+  }
+  return categories[0] ?? 'Other';
 }
 
 const ADMIN_COURSE_STORAGE_KEY = 'lms:adminCourseEditor:';
@@ -88,6 +106,8 @@ const AdminCourse: React.FC = () => {
   const [weeks, setWeeks] = useState<WeekDraft[]>([]);
   const [saving, setSaving] = useState(false);
   const [documents, setDocuments] = useState<{ id: string; title: string; category: string }[]>([]);
+  const [docCategories, setDocCategories] = useState<string[]>([]);
+  const [pdfUploadingItemTempId, setPdfUploadingItemTempId] = useState<string | null>(null);
 
   const loadCourses = useCallback((opts?: { silent?: boolean }) => {
     const silent = opts?.silent ?? false;
@@ -110,6 +130,53 @@ const AdminCourse: React.FC = () => {
       setDocuments(res.documents.map((d) => ({ id: d.id, title: d.title, category: d.category })));
     }).catch(() => setDocuments([]));
   }, []);
+
+  useEffect(() => {
+    documentsService.getCategories().then(setDocCategories).catch(() => setDocCategories([]));
+  }, []);
+
+  const refreshDocumentsList = useCallback(() => {
+    documentsService
+      .getAll()
+      .then((res) => {
+        setDocuments(res.documents.map((d) => ({ id: d.id, title: d.title, category: d.category })));
+      })
+      .catch(() => {});
+  }, []);
+
+  const handlePdfUploadForItem = async (
+    weekTempId: string,
+    sectionTempId: string,
+    item: ItemDraft,
+    fileList: FileList | null
+  ) => {
+    const file = fileList?.[0];
+    if (!file || item.type !== 'pdf') return;
+    const looksPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    if (!looksPdf) {
+      alert('Please choose a PDF file (.pdf).');
+      return;
+    }
+    setPdfUploadingItemTempId(item.tempId);
+    try {
+      const created = await documentsService.create({
+        title: item.title.trim() || file.name.replace(/\.pdf$/i, ''),
+        description: `Uploaded from the course editor for “${courseTitle.trim() || 'course'}”.`,
+        category: pickDocumentUploadCategory(docCategories),
+        file,
+        courseIds: editingId ? [editingId] : undefined,
+      });
+      updateItem(weekTempId, sectionTempId, item.tempId, {
+        documentId: created.id,
+        fileUrl: undefined,
+      });
+      refreshDocumentsList();
+    } catch (e) {
+      alert(getErrorMessage(e, 'Could not upload the PDF. Try again or use Resources → upload there.'));
+    } finally {
+      setPdfUploadingItemTempId(null);
+    }
+  };
 
   const startNew = () => {
     setEditingId(null);
@@ -143,6 +210,7 @@ const AdminCourse: React.FC = () => {
             url: it.type !== 'pdf' ? (it as { url: string }).url : undefined,
             documentId: it.type === 'pdf' ? (it as { documentId?: string }).documentId : undefined,
             fileUrl: it.type === 'pdf' ? (it as { fileUrl?: string }).fileUrl : undefined,
+            information: (it as { information?: string }).information || '',
           })),
         })),
       }))
@@ -317,7 +385,7 @@ const AdminCourse: React.FC = () => {
               ...s,
               items: [
                 ...s.items,
-                { tempId: newTempId(), type: 'video', title: '', order, url: '' },
+                { tempId: newTempId(), type: 'video', title: '', order, url: '', information: '' },
               ],
             };
           }),
@@ -383,6 +451,7 @@ const AdminCourse: React.FC = () => {
                 id: it.tempId.startsWith('tmp-') ? courseService.generateId() : it.tempId,
                 title: it.title.trim(),
                 order: i + 1,
+                ...(it.information?.trim() ? { information: it.information.trim() } : {}),
               };
               if (it.type === 'video') {
                 return { ...base, type: 'video' as const, url: (it.url || '').trim() };
@@ -586,53 +655,95 @@ const AdminCourse: React.FC = () => {
                               <div className="ml-7">
                                 <p className="text-sm font-medium text-neutral-600 mb-2">Items (videos, links, PDFs)</p>
                                 {sec.items.map((it) => (
-                                  <div key={it.tempId} className="flex flex-wrap gap-2 items-start mb-3 p-3 bg-neutral-50 border border-neutral-200 rounded">
-                                    <select
-                                      value={it.type}
-                                      onChange={(e) => updateItem(week.tempId, sec.tempId, it.tempId, { type: e.target.value as ItemDraft['type'] })}
-                                      className="rounded border border-neutral-300 px-2 py-1 text-sm"
-                                    >
-                                      <option value="video">Video</option>
-                                      <option value="link">Link</option>
-                                      <option value="pdf">PDF</option>
-                                    </select>
-                                    <Input
-                                      placeholder="Title"
-                                      value={it.title}
-                                      onChange={(e) => updateItem(week.tempId, sec.tempId, it.tempId, { title: e.target.value })}
-                                      className="flex-1 min-w-[120px]"
-                                    />
-                                    {it.type !== 'pdf' && (
+                                  <div key={it.tempId} className="mb-4 p-3 bg-neutral-50 border border-neutral-200 rounded space-y-2">
+                                    <div className="flex flex-wrap gap-2 items-start">
+                                      <select
+                                        value={it.type}
+                                        onChange={(e) => updateItem(week.tempId, sec.tempId, it.tempId, { type: e.target.value as ItemDraft['type'] })}
+                                        className="rounded border border-neutral-300 px-2 py-1 text-sm"
+                                      >
+                                        <option value="video">Video</option>
+                                        <option value="link">Link</option>
+                                        <option value="pdf">PDF</option>
+                                      </select>
                                       <Input
-                                        placeholder={it.type === 'video' ? 'YouTube embed URL' : 'URL'}
-                                        value={it.url || ''}
-                                        onChange={(e) => updateItem(week.tempId, sec.tempId, it.tempId, { url: e.target.value })}
-                                        className="flex-1 min-w-[200px]"
+                                        placeholder="Title"
+                                        value={it.title}
+                                        onChange={(e) => updateItem(week.tempId, sec.tempId, it.tempId, { title: e.target.value })}
+                                        className="flex-1 min-w-[120px]"
                                       />
-                                    )}
-                                    {it.type === 'pdf' && (
-                                      <>
-                                        <select
-                                          value={it.documentId || ''}
-                                          onChange={(e) => updateItem(week.tempId, sec.tempId, it.tempId, { documentId: e.target.value || undefined, fileUrl: undefined })}
-                                          className="rounded border border-neutral-300 px-2 py-1 text-sm min-w-[180px]"
-                                        >
-                                          <option value="">— Or paste URL below —</option>
-                                          {documents.map((d) => (
-                                            <option key={d.id} value={d.id}>{d.title}</option>
-                                          ))}
-                                        </select>
+                                      {it.type !== 'pdf' && (
                                         <Input
-                                          placeholder="Or direct PDF URL"
-                                          value={it.fileUrl || ''}
-                                          onChange={(e) => updateItem(week.tempId, sec.tempId, it.tempId, { fileUrl: e.target.value || undefined })}
+                                          placeholder={it.type === 'video' ? 'YouTube URL or direct .mp4 / .webm link' : 'URL'}
+                                          value={it.url || ''}
+                                          onChange={(e) => updateItem(week.tempId, sec.tempId, it.tempId, { url: e.target.value })}
                                           className="flex-1 min-w-[200px]"
                                         />
-                                      </>
-                                    )}
-                                    <Button type="button" variant="outline" size="sm" onClick={() => removeItem(week.tempId, sec.tempId, it.tempId)} className="text-red-600 shrink-0">
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
+                                      )}
+                                      {it.type === 'pdf' && (
+                                        <>
+                                          <select
+                                            value={it.documentId || ''}
+                                            onChange={(e) => updateItem(week.tempId, sec.tempId, it.tempId, { documentId: e.target.value || undefined, fileUrl: undefined })}
+                                            className="rounded border border-neutral-300 px-2 py-1 text-sm min-w-[180px]"
+                                          >
+                                            <option value="">— Library —</option>
+                                            {documents.map((d) => (
+                                              <option key={d.id} value={d.id}>{d.title}</option>
+                                            ))}
+                                          </select>
+                                          <input
+                                            type="file"
+                                            accept="application/pdf,.pdf"
+                                            className="hidden"
+                                            id={`admin-course-pdf-${it.tempId}`}
+                                            onChange={(e) => {
+                                              void handlePdfUploadForItem(week.tempId, sec.tempId, it, e.target.files);
+                                              e.target.value = '';
+                                            }}
+                                            disabled={pdfUploadingItemTempId === it.tempId}
+                                          />
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="shrink-0 gap-1"
+                                            disabled={pdfUploadingItemTempId === it.tempId}
+                                            onClick={() => document.getElementById(`admin-course-pdf-${it.tempId}`)?.click()}
+                                            title="Upload a PDF to Resources and attach it to this item"
+                                          >
+                                            {pdfUploadingItemTempId === it.tempId ? (
+                                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                                            ) : (
+                                              <Upload className="h-4 w-4" aria-hidden />
+                                            )}
+                                            Upload PDF
+                                          </Button>
+                                          <Input
+                                            placeholder="Or direct PDF URL"
+                                            value={it.fileUrl || ''}
+                                            onChange={(e) => updateItem(week.tempId, sec.tempId, it.tempId, { fileUrl: e.target.value || undefined })}
+                                            className="flex-1 min-w-[200px]"
+                                          />
+                                          <p className="w-full text-xs text-neutral-500 -mt-0.5">
+                                            Upload sends the file to Resources and selects it here.{' '}
+                                            {editingId
+                                              ? 'New uploads are restricted to students who can access this course.'
+                                              : 'After you save the course, re-upload or set access under Resources if you need course-only visibility.'}
+                                          </p>
+                                        </>
+                                      )}
+                                      <Button type="button" variant="outline" size="sm" onClick={() => removeItem(week.tempId, sec.tempId, it.tempId)} className="text-red-600 shrink-0">
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                    <TextArea
+                                      placeholder="Student information (optional) — instructions or context shown above this resource in the course viewer."
+                                      value={it.information || ''}
+                                      onChange={(e) => updateItem(week.tempId, sec.tempId, it.tempId, { information: e.target.value })}
+                                      rows={3}
+                                      className="w-full text-sm min-h-[4.5rem]"
+                                    />
                                   </div>
                                 ))}
                                 <Button type="button" variant="outline" size="sm" onClick={() => addItem(week.tempId, sec.tempId)}>

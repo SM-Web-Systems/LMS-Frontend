@@ -82,12 +82,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* App navigation rail */}
       <aside
         className={[
-          'fixed lg:sticky top-0 z-50 h-screen w-56 xl:w-60 shrink-0 flex flex-col bg-white border-r border-neutral-200 shadow-sm lg:shadow-none',
+          'fixed lg:sticky top-0 z-50 h-screen w-56 xl:w-60 shrink-0 flex flex-col bg-gradient-to-b from-white to-neutral-50/95 border-r border-neutral-200/90 shadow-sm lg:shadow-none',
           'transition-transform duration-200 ease-out lg:translate-x-0',
           mobileNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         ].join(' ')}
       >
-        <div className="p-4 border-b border-neutral-100 flex items-center gap-3 min-h-[4rem]">
+        <div className="p-4 border-b border-neutral-200/80 flex items-center gap-3 min-h-[4rem]">
           <img src="/logo.png" alt="SM Web Systems" className="h-9 w-9 shrink-0" />
           <div className="min-w-0">
             <p className="text-sm font-bold text-primary-dark leading-tight truncate">SM Web Systems</p>
@@ -113,10 +113,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 type="button"
                 onClick={() => navigate(item.path)}
                 className={[
-                  'w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors',
+                  'w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all duration-200',
                   active
-                    ? 'bg-accent-teal/10 text-primary-dark shadow-[inset_3px_0_0_0_#3d7a8c]'
-                    : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900',
+                    ? 'bg-white text-primary-dark shadow-card ring-1 ring-neutral-900/5 shadow-[inset_3px_0_0_0_#3d7a8c]'
+                    : 'text-neutral-600 hover:bg-white/80 hover:text-neutral-900',
                 ].join(' ')}
               >
                 <Icon className={`h-5 w-5 shrink-0 ${active ? 'text-accent-teal' : 'text-neutral-400'}`} />
@@ -129,7 +129,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Main column */}
       <div className="flex-1 flex flex-col min-w-0 min-h-screen">
-        <header className="h-14 shrink-0 bg-white border-b border-neutral-200 flex items-center justify-between gap-3 px-4 lg:px-6">
+        <header className="h-14 shrink-0 bg-white/90 backdrop-blur-md border-b border-neutral-200/90 flex items-center justify-between gap-3 px-4 lg:px-6">
           <button
             type="button"
             className="lg:hidden inline-flex items-center justify-center p-2 rounded-md text-neutral-700 hover:bg-neutral-100"
