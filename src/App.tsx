@@ -23,6 +23,7 @@ import AdminCourse from './pages/AdminCourse';
 import AdminQuizzes from './pages/AdminQuizzes';
 import StudentQuizzes from './pages/StudentQuizzes';
 import { Loader2 } from 'lucide-react';
+import { ToastProvider } from './components/ToastProvider';
 
 const LoadingScreen: React.FC = () => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -104,9 +105,10 @@ const SignUpRoute: React.FC = () => {
 function App() {
   return (
     <Router>
-      <AuthProvider>
-        <DataProvider>
-          <Routes>
+      <ToastProvider>
+        <AuthProvider>
+          <DataProvider>
+            <Routes>
             <Route path="/login/*" element={<LoginRoute />} />
             <Route path="/sign-up/*" element={<SignUpRoute />} />
             <Route path="/" element={<HomeRoute />} />
@@ -326,9 +328,10 @@ function App() {
             />
 
             <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </DataProvider>
-      </AuthProvider>
+            </Routes>
+          </DataProvider>
+        </AuthProvider>
+      </ToastProvider>
     </Router>
   );
 }

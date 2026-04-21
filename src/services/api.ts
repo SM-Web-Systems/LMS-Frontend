@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, isAxiosError } from 'axios';
 import { fromAxiosError } from '../utils/apiError';
+import { toastError } from '../utils/toastBus';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1';
 
@@ -51,7 +52,8 @@ api.interceptors.response.use(
     // Never hard-redirect on these: /auth/me uses Clerk token; backend may return 401 until
     // Clerk is verified server-side — redirecting would reload /login while Clerk session
     // persists and causes an infinite loop.
-    if (error.response?.status === 401) {
+    const status = error.response?.status;
+    if (status === 401) {
       const skipRedirect =
         reqUrl.includes('/auth/login') ||
         reqUrl.includes('/auth/google') ||
@@ -60,7 +62,11 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     }
-    return Promise.reject(fromAxiosError(error));
+    const parsed = fromAxiosError(error);
+    if (status === 429) {
+      toastError(parsed.message);
+    }
+    return Promise.reject(parsed);
   }
 );
 
