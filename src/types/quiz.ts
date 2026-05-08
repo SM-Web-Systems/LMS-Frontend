@@ -1,6 +1,6 @@
 // Quiz types for admin-created quizzes and student attempts
 
-export type QuestionType = 'multiple_choice' | 'short_answer';
+export type QuestionType = 'multiple_choice' | 'short_answer' | 'flashcard';
 
 export interface QuizQuestion {
   id: string;

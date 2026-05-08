@@ -4,8 +4,13 @@ import { assertApiOk, assertApiSuccess } from '../utils/apiError';
 import type { ForumTopic, ForumPost, CreateTopicData, CreatePostData } from '../types/forum';
 
 export const forumService = {
-  async getTopics(): Promise<ForumTopic[]> {
-    const res = await api.get<ApiResponse<{ topics: ForumTopic[] }>>('/forum/topics');
+  /** Pass courseId=null/'general' for the General channel, or a course ID for a course channel. */
+  async getTopics(courseId?: string | null): Promise<ForumTopic[]> {
+    const param =
+      courseId && courseId !== 'general'
+        ? `?courseId=${encodeURIComponent(courseId)}`
+        : '?courseId=general';
+    const res = await api.get<ApiResponse<{ topics: ForumTopic[] }>>(`/forum/topics${param}`);
     const data = assertApiSuccess(res, 'Could not load forum topics.');
     return data.topics ?? [];
   },

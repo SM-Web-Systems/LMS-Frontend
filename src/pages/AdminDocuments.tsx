@@ -41,6 +41,10 @@ const getFileIcon = (fileName: string, size: 'sm' | 'lg' = 'lg') => {
     case 'doc':
     case 'docx':
       return <FileText className={`${sizeClass} text-blue-500`} />;
+    case 'ppt':
+    case 'pptx':
+    case 'ppsx':
+      return <FileText className={`${sizeClass} text-orange-500`} />;
     case 'zip':
     case 'rar':
       return <FileArchive className={`${sizeClass} text-amber-500`} />;
@@ -103,6 +107,7 @@ const AdminDocuments: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -177,7 +182,7 @@ const AdminDocuments: React.FC = () => {
 
     try {
       setUploading(true);
-      setError(null);
+      setUploadError(null);
 
       const courseIds = formData.accessType === 'open' ? [] : formData.selectedCourseIds;
       const data: CreateDocumentData = {
@@ -191,10 +196,11 @@ const AdminDocuments: React.FC = () => {
       await documentsService.create(data);
       setSuccessMessage('Document uploaded successfully!');
       setIsUploadModalOpen(false);
+      setUploadError(null);
       resetForm();
       fetchDocuments();
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not upload the document.'));
+      setUploadError(getErrorMessage(err, 'Could not upload the document.'));
     } finally {
       setUploading(false);
     }
@@ -236,6 +242,7 @@ const AdminDocuments: React.FC = () => {
       selectedCourseIds: [],
     });
     setSelectedFile(null);
+    setUploadError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -480,10 +487,22 @@ const AdminDocuments: React.FC = () => {
         onClose={() => {
           setIsUploadModalOpen(false);
           resetForm();
+          setUploadError(null);
         }}
         title="Upload Course Document"
       >
         <form onSubmit={handleUpload} className="space-y-4">
+          {/* Inline error banner */}
+          {uploadError && (
+            <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-500" />
+              <span className="flex-1">{uploadError}</span>
+              <button type="button" onClick={() => setUploadError(null)} className="shrink-0">
+                <X className="h-4 w-4 text-red-400 hover:text-red-600" />
+              </button>
+            </div>
+          )}
+
           {/* File Drop Zone */}
           <div
             onClick={() => fileInputRef.current?.click()}
@@ -498,7 +517,7 @@ const AdminDocuments: React.FC = () => {
               type="file"
               onChange={handleFileSelect}
               className="hidden"
-              accept=".pdf,.doc,.docx,.zip,.txt,.png,.jpg,.jpeg,.gif"
+              accept=".pdf,.doc,.docx,.zip,.txt,.png,.jpg,.jpeg,.gif,.ppt,.pptx,.ppsx"
             />
             {selectedFile ? (
               <div className="flex items-center justify-center space-x-3">
@@ -524,7 +543,7 @@ const AdminDocuments: React.FC = () => {
                 <Upload className="h-10 w-10 text-gray-400 mx-auto mb-3" />
                 <p className="text-gray-600">Click to select a file</p>
                 <p className="text-sm text-gray-400 mt-1">
-                  PDF, DOC, DOCX, ZIP, TXT, Images (max 10MB)
+                  PDF, DOC, DOCX, PPT, PPTX, ZIP, TXT, Images (max 10MB)
                 </p>
               </>
             )}
@@ -546,15 +565,21 @@ const AdminDocuments: React.FC = () => {
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Description *
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700">
+                Description *
+              </label>
+              <span className={`text-xs tabular-nums ${formData.description.length > 900 ? 'text-amber-600 font-medium' : 'text-gray-400'}`}>
+                {formData.description.length}/1000
+              </span>
+            </div>
             <textarea
               value={formData.description}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, description: e.target.value.slice(0, 1000) })}
               placeholder="Brief description of the document"
               rows={3}
               required
+              maxLength={1000}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             />
           </div>

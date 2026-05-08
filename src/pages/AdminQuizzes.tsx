@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import Input, { TextArea } from '../components/Input';
@@ -6,8 +6,24 @@ import { quizService } from '../services/quizService';
 import { courseService } from '../services/courseService';
 import type { Quiz, QuizQuestion } from '../types/quiz';
 import type { Course } from '../types/course';
-import { ClipboardList, Plus, Trash2, Pencil, ArrowLeft, Loader2, GripVertical, AlertCircle } from 'lucide-react';
+import {
+  ClipboardList,
+  Plus,
+  Trash2,
+  Pencil,
+  ArrowLeft,
+  Loader2,
+  GripVertical,
+  AlertCircle,
+  Download,
+  FileSpreadsheet,
+  Upload,
+  X,
+  LayoutGrid,
+  Eye,
+} from 'lucide-react';
 import { ApiRequestError, getErrorMessage } from '../utils/apiError';
+import { AdminQuizPreview } from '../components/AdminQuizPreview';
 
 function newTempId(): string {
   return 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
@@ -15,7 +31,7 @@ function newTempId(): string {
 
 type QuestionDraft = {
   tempId: string;
-  type: 'multiple_choice' | 'short_answer';
+  type: 'multiple_choice' | 'short_answer' | 'flashcard';
   question: string;
   information: string;
   options: string[];
@@ -23,6 +39,146 @@ type QuestionDraft = {
   correctAnswer: string;
   order: number;
 };
+
+// ─── CSV helpers ────────────────────────────────────────────────────────────
+
+const OPTION_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+const CSV_TEMPLATE_HEADER = 'type,question,information,option_a,option_b,option_c,option_d,correct';
+const CSV_TEMPLATE_ROWS = [
+  'multiple_choice,What is a blockchain?,Read chapter 1 before answering.,A distributed ledger,A type of currency,A programming language,A centralised database,A',
+  'flashcard,Which consensus mechanism is used by Bitcoin?,,Proof of Work,Proof of Stake,Delegated Proof of Stake,Proof of Authority,A',
+  'short_answer,What does DeFi stand for?,,,,,,Decentralized Finance',
+  'multiple_choice,Who created Bitcoin?,,Satoshi Nakamoto,Vitalik Buterin,Elon Musk,Craig Wright,A',
+];
+const CSV_TEMPLATE = [CSV_TEMPLATE_HEADER, ...CSV_TEMPLATE_ROWS].join('\n');
+
+function downloadQuizTemplate() {
+  const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'quiz-template.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function exportQuizToCSV(quizTitle: string, questions: QuestionDraft[]) {
+  const rows = [CSV_TEMPLATE_HEADER];
+  for (const q of questions) {
+    const opts = q.options.slice(0, 6);
+    while (opts.length < 4) opts.push('');
+    const correctCell =
+      q.type === 'short_answer'
+        ? q.correctAnswer
+        : OPTION_LETTERS[q.correctIndex] ?? 'A';
+    rows.push(csvRow([q.type, q.question, q.information, ...opts, correctCell]));
+  }
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${quizTitle.trim().replace(/\s+/g, '-').toLowerCase() || 'quiz'}-export.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function csvRow(fields: string[]): string {
+  return fields.map((f) => `"${(f ?? '').replace(/"/g, '""')}"`).join(',');
+}
+
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (ch === '"') { inQuotes = false; }
+      else { cur += ch; }
+    } else {
+      if (ch === '"') { inQuotes = true; }
+      else if (ch === ',') { result.push(cur); cur = ''; }
+      else { cur += ch; }
+    }
+  }
+  result.push(cur);
+  return result;
+}
+
+type ParsedCSV = { questions: QuestionDraft[]; errors: string[] };
+
+function parseQuizCSV(raw: string): ParsedCSV {
+  const errors: string[] = [];
+  const questions: QuestionDraft[] = [];
+  const lines = raw.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) return { questions: [], errors: ['CSV is empty or has no data rows.'] };
+
+  const header = parseCSVLine(lines[0]).map((h) => h.toLowerCase().trim());
+  const typeIdx = header.indexOf('type');
+  const qIdx = header.indexOf('question');
+  const infoIdx = header.indexOf('information');
+  const correctIdx = header.indexOf('correct');
+
+  if (typeIdx < 0 || qIdx < 0 || correctIdx < 0) {
+    return { questions: [], errors: ['CSV must have "type", "question", and "correct" columns.'] };
+  }
+
+  // Collect option columns (option_a, option_b, option_c, …)
+  const optionIndices: number[] = [];
+  for (let i = 0; i < header.length; i++) {
+    if (/^option_[a-z]$/i.test(header[i])) optionIndices.push(i);
+  }
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseCSVLine(lines[i]);
+    const type = (cols[typeIdx] ?? '').trim().toLowerCase();
+    const question = (cols[qIdx] ?? '').trim();
+    const information = infoIdx >= 0 ? (cols[infoIdx] ?? '').trim() : '';
+    const correctRaw = (cols[correctIdx] ?? '').trim();
+    const opts = optionIndices.map((oi) => (cols[oi] ?? '').trim()).filter(Boolean);
+
+    if (!question) continue;
+
+    if (type === 'multiple_choice' || type === 'flashcard') {
+      if (opts.length < 2) {
+        errors.push(`Row ${i + 1}: "${type}" needs at least 2 options (option_a, option_b…).`);
+        continue;
+      }
+      const letterIdx = OPTION_LETTERS.findIndex((l) => l === correctRaw.toUpperCase());
+      const correctIndex = letterIdx >= 0 ? letterIdx : 0;
+      if (letterIdx < 0) {
+        errors.push(`Row ${i + 1}: "correct" should be A/B/C/D (got "${correctRaw}"); defaulting to A.`);
+      }
+      questions.push({
+        tempId: newTempId(),
+        type: type as 'multiple_choice' | 'flashcard',
+        question,
+        information,
+        options: opts,
+        correctIndex,
+        correctAnswer: '',
+        order: questions.length + 1,
+      });
+    } else if (type === 'short_answer') {
+      questions.push({
+        tempId: newTempId(),
+        type: 'short_answer',
+        question,
+        information,
+        options: [],
+        correctIndex: 0,
+        correctAnswer: correctRaw,
+        order: questions.length + 1,
+      });
+    } else {
+      errors.push(`Row ${i + 1}: unknown type "${type}" — use multiple_choice, flashcard, or short_answer.`);
+    }
+  }
+
+  return { questions, errors };
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 const AdminQuizzes: React.FC = () => {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -38,6 +194,16 @@ const AdminQuizzes: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Preview state
+  const [previewQuiz, setPreviewQuiz] = useState<Quiz | null>(null);
+
+  // CSV import state
+  const [importOpen, setImportOpen] = useState(false);
+  const [importParsed, setImportParsed] = useState<QuestionDraft[] | null>(null);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [importFileName, setImportFileName] = useState('');
+  const csvRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -70,7 +236,6 @@ const AdminQuizzes: React.FC = () => {
     setShowForm(true);
   };
 
-  /** Close form and clear edit mode so Cancel cannot leave a stale editingId (PUT to wrong/missing quiz). */
   const closeForm = () => {
     setShowForm(false);
     setEditingId(null);
@@ -150,6 +315,42 @@ const AdminQuizzes: React.FC = () => {
     );
   };
 
+  // CSV handlers
+  const openImport = () => {
+    setImportParsed(null);
+    setImportErrors([]);
+    setImportFileName('');
+    setImportOpen(true);
+  };
+
+  const handleCSVFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = (ev.target?.result as string) ?? '';
+      const { questions: parsed, errors } = parseQuizCSV(text);
+      setImportParsed(parsed.length > 0 ? parsed : null);
+      setImportErrors(errors);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const applyImport = (mode: 'replace' | 'append') => {
+    if (!importParsed) return;
+    setQuestions((prev) => {
+      const base = mode === 'append' ? prev : [];
+      const offset = base.length;
+      return [...base, ...importParsed.map((q, i) => ({ ...q, order: offset + i + 1 }))];
+    });
+    setImportOpen(false);
+    setImportParsed(null);
+    setImportErrors([]);
+    setImportFileName('');
+  };
+
   const handleSave = async () => {
     if (!title.trim()) return;
     setSaving(true);
@@ -171,7 +372,7 @@ const AdminQuizzes: React.FC = () => {
             order: i + 1,
             ...(q.information?.trim() ? { information: q.information.trim() } : {}),
           };
-          if (q.type === 'multiple_choice') {
+          if (q.type === 'multiple_choice' || q.type === 'flashcard') {
             base.options = q.options.filter((o) => o.trim());
             base.correctIndex = q.correctIndex;
           } else {
@@ -238,10 +439,16 @@ const AdminQuizzes: React.FC = () => {
 
       {!showForm ? (
         <>
-          <Button className="mb-6" onClick={startNew}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create quiz
-          </Button>
+          <div className="flex flex-wrap gap-3 mb-6">
+            <Button onClick={startNew}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create quiz
+            </Button>
+            <Button variant="outline" onClick={downloadQuizTemplate}>
+              <Download className="h-4 w-4 mr-2" />
+              Download CSV template
+            </Button>
+          </div>
           <div className="space-y-4">
             {quizzes.map((q) => (
               <Card key={q.id}>
@@ -253,7 +460,11 @@ const AdminQuizzes: React.FC = () => {
                       {q.courseId ? ` · Course: ${courses.find((c) => c.id === q.courseId)?.title ?? q.courseId}` : ''}
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap justify-end">
+                    <Button variant="outline" size="sm" onClick={() => setPreviewQuiz(q)}>
+                      <Eye className="h-4 w-4 mr-1" />
+                      Preview
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => startEdit(q)}>
                       <Pencil className="h-4 w-4 mr-1" />
                       Edit
@@ -270,12 +481,24 @@ const AdminQuizzes: React.FC = () => {
       ) : (
         <Card className="mb-6">
           <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
               <h2 className="text-xl font-semibold text-neutral-800">{editingId ? 'Edit quiz' : 'New quiz'}</h2>
-              <Button variant="outline" size="sm" onClick={closeForm}>
-                <ArrowLeft className="h-4 w-4 mr-1" />
-                Cancel
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={openImport}>
+                  <FileSpreadsheet className="h-4 w-4 mr-1" />
+                  Import CSV
+                </Button>
+                {questions.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={() => exportQuizToCSV(title, questions)}>
+                    <Download className="h-4 w-4 mr-1" />
+                    Export CSV
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={closeForm}>
+                  <ArrowLeft className="h-4 w-4 mr-1" />
+                  Cancel
+                </Button>
+              </div>
             </div>
 
             {formError ? (
@@ -320,30 +543,43 @@ const AdminQuizzes: React.FC = () => {
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-medium text-neutral-800">Questions</span>
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                  <span className="font-medium text-neutral-800">
+                    Questions {questions.length > 0 ? <span className="text-neutral-500 font-normal text-sm">({questions.length})</span> : null}
+                  </span>
                   <Button type="button" variant="outline" size="sm" onClick={addQuestion}>
                     <Plus className="h-4 w-4 mr-1" />
                     Add question
                   </Button>
                 </div>
-                {questions.length === 0 && <p className="text-sm text-neutral-500 mb-3">Add at least one question.</p>}
+                {questions.length === 0 && (
+                  <p className="text-sm text-neutral-500 mb-3">
+                    Add questions one by one or use <strong>Import CSV</strong> to bulk-upload them.
+                  </p>
+                )}
                 <div className="space-y-6">
                   {questions.map((q, idx) => (
                     <div key={q.tempId} className="border border-neutral-200 rounded-lg p-4 bg-neutral-50/50">
                       <div className="flex items-start gap-2">
                         <GripVertical className="h-5 w-5 text-neutral-400 mt-1 shrink-0" />
                         <div className="flex-1 space-y-3">
-                          <div className="flex gap-2 items-center">
+                          <div className="flex gap-2 items-center flex-wrap">
                             <select
                               value={q.type}
                               onChange={(e) => updateQuestion(q.tempId, { type: e.target.value as QuestionDraft['type'] })}
                               className="rounded border border-neutral-300 px-2 py-1 text-sm"
                             >
                               <option value="multiple_choice">Multiple choice</option>
+                              <option value="flashcard">Flashcard grid</option>
                               <option value="short_answer">Short answer</option>
                             </select>
                             <span className="text-sm text-neutral-500">Question {idx + 1}</span>
+                            {q.type === 'flashcard' && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-accent-teal/10 border border-accent-teal/25 px-2 py-0.5 text-xs font-medium text-accent-teal">
+                                <LayoutGrid className="h-3 w-3" />
+                                Shown as clickable cards to students
+                              </span>
+                            )}
                           </div>
                           <Input
                             placeholder="Question text"
@@ -357,20 +593,24 @@ const AdminQuizzes: React.FC = () => {
                             rows={2}
                             className="text-sm"
                           />
-                          {q.type === 'multiple_choice' && (
+                          {(q.type === 'multiple_choice' || q.type === 'flashcard') && (
                             <div className="space-y-2">
-                              <p className="text-sm font-medium text-neutral-600">Options (select correct one)</p>
+                              <p className="text-sm font-medium text-neutral-600">
+                                Options — click the radio to mark the correct answer
+                              </p>
                               {(q.options || []).map((opt, oi) => (
-                                <div key={oi} className="flex gap-2 items-center">
+                                <div key={oi} className={`flex gap-2 items-center rounded-lg px-2 py-1 -mx-1 transition-colors ${q.correctIndex === oi ? 'bg-green-50 border border-green-200' : ''}`}>
                                   <input
                                     type="radio"
                                     name={`correct-${q.tempId}`}
                                     checked={q.correctIndex === oi}
                                     onChange={() => updateQuestion(q.tempId, { correctIndex: oi })}
-                                    className="rounded border-neutral-300"
+                                    className="accent-green-600"
+                                    title="Mark as correct"
                                   />
+                                  <span className="text-xs font-bold text-neutral-500 w-5 shrink-0">{OPTION_LETTERS[oi]}</span>
                                   <Input
-                                    placeholder={`Option ${oi + 1}`}
+                                    placeholder={`Option ${OPTION_LETTERS[oi]}`}
                                     value={opt}
                                     onChange={(e) => setQuestionOption(q.tempId, oi, e.target.value)}
                                     className="flex-1"
@@ -414,6 +654,83 @@ const AdminQuizzes: React.FC = () => {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Admin Quiz Preview */}
+      {previewQuiz && (
+        <AdminQuizPreview quiz={previewQuiz} onClose={() => setPreviewQuiz(null)} />
+      )}
+
+      {/* CSV Import Modal */}
+      {importOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setImportOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-neutral-800">Import questions from CSV</h3>
+              <button type="button" onClick={() => setImportOpen(false)} className="rounded-lg p-1.5 hover:bg-neutral-100 text-neutral-500">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="text-sm text-neutral-600 leading-relaxed">
+              Upload a CSV with columns:{' '}
+              <code className="bg-neutral-100 px-1 rounded text-xs">
+                type, question, information, option_a, option_b, option_c, option_d, correct
+              </code>.
+              <br />
+              For multiple_choice/flashcard: <code className="bg-neutral-100 px-1 rounded text-xs">correct</code> = A/B/C/D.
+              For short_answer: write the expected answer text.
+            </p>
+
+            <div className="flex flex-wrap gap-3">
+              <Button variant="outline" size="sm" onClick={downloadQuizTemplate}>
+                <Download className="h-4 w-4 mr-1" />
+                Download template
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => csvRef.current?.click()}>
+                <Upload className="h-4 w-4 mr-1" />
+                {importFileName || 'Choose CSV file'}
+              </Button>
+              <input ref={csvRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCSVFile} />
+            </div>
+
+            {importErrors.length > 0 && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 space-y-1">
+                <div className="flex items-center gap-2 text-amber-700 font-medium text-sm">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  Parse warnings
+                </div>
+                {importErrors.map((err, i) => (
+                  <p key={i} className="text-xs text-amber-700 pl-6">{err}</p>
+                ))}
+              </div>
+            )}
+
+            {importParsed && (
+              <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-800 space-y-1">
+                <p className="font-semibold">{importParsed.length} question{importParsed.length !== 1 ? 's' : ''} parsed</p>
+                <div className="text-xs space-y-0.5">
+                  {importParsed.slice(0, 5).map((q, i) => (
+                    <p key={i} className="pl-2 truncate">
+                      <span className="font-medium capitalize">{q.type.replace('_', ' ')}</span>: {q.question || '(empty)'}
+                    </p>
+                  ))}
+                  {importParsed.length > 5 && <p className="pl-2 text-green-700">…and {importParsed.length - 5} more</p>}
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-2 flex-wrap">
+              <Button onClick={() => applyImport('replace')} disabled={!importParsed}>
+                Replace all questions
+              </Button>
+              <Button variant="outline" onClick={() => applyImport('append')} disabled={!importParsed}>
+                Append to existing
+              </Button>
+              <Button variant="outline" onClick={() => setImportOpen(false)}>Cancel</Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -1,7 +1,9 @@
 /**
- * Detect direct video files (native <video>) vs hosted embeds (iframe).
+ * Detect direct video/audio files (native elements) vs hosted embeds (iframe).
  */
 const VIDEO_FILE_EXT = /\.(mp4|webm|ogg|mov|m4v)(\?|#|$)/i;
+const AUDIO_FILE_EXT = /\.(mp3|wav|aac|m4a|flac|opus|oga)(\?|#|$)/i;
+const OFFICE_FILE_EXT = /\.(pptx|ppt|ppsx|pps)(\?|#|$)/i;
 
 export function isDirectVideoFileUrl(url: string): boolean {
   const s = url.trim();
@@ -88,4 +90,48 @@ export function shouldOpenVideoInModal(url: string): boolean {
   const u = url.trim();
   if (!u) return false;
   return isDirectVideoFileUrl(u) || extractYoutubeId(u) !== null || extractVimeoId(u) !== null;
+}
+
+export function isDirectAudioFileUrl(url: string): boolean {
+  const s = url.trim();
+  if (!s) return false;
+  try {
+    const u = new URL(s);
+    return AUDIO_FILE_EXT.test(u.pathname);
+  } catch {
+    return AUDIO_FILE_EXT.test(s);
+  }
+}
+
+export function isOfficePresentationUrl(url: string): boolean {
+  const s = url.trim();
+  if (!s) return false;
+  try {
+    const u = new URL(s);
+    return OFFICE_FILE_EXT.test(u.pathname);
+  } catch {
+    return OFFICE_FILE_EXT.test(s);
+  }
+}
+
+/** Returns the Office Online embed URL for a publicly accessible PPTX/PPT URL. */
+export function getOfficeOnlineEmbedUrl(url: string): string {
+  return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url.trim())}`;
+}
+
+export function isGoogleDriveUrl(url: string): boolean {
+  try {
+    const u = new URL(url.trim());
+    const h = u.hostname.replace(/^www\./, '').toLowerCase();
+    return h === 'drive.google.com' || h === 'docs.google.com' || h === 'sheets.google.com' || h === 'slides.google.com';
+  } catch {
+    return false;
+  }
+}
+
+/** Audio files and presentations → render in-app (not external tab). */
+export function shouldOpenInAppPlayer(url: string): boolean {
+  const u = url.trim();
+  if (!u) return false;
+  return isDirectAudioFileUrl(u) || isOfficePresentationUrl(u);
 }

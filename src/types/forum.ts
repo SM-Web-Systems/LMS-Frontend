@@ -11,6 +11,8 @@ export interface ForumTopic {
   id: string;
   title: string;
   body: string;
+  /** null / undefined = General channel */
+  courseId?: string | null;
   author: ForumAuthor;
   createdAt: string; // ISO
   updatedAt?: string;
@@ -30,6 +32,8 @@ export interface ForumPost {
 export interface CreateTopicData {
   title: string;
   body: string;
+  /** null / 'general' = General channel */
+  courseId?: string | null;
 }
 
 export interface CreatePostData {

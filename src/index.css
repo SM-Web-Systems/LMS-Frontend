@@ -102,8 +102,57 @@
     @apply text-xs font-semibold uppercase tracking-[0.2em] text-accent-teal;
   }
 
+  /** Landing — light header (Lawyered-style airy marketing) */
   .lms-landing-header {
-    @apply sticky top-0 z-30 border-b border-white/10 bg-primary-dark/75 backdrop-blur-xl;
+    @apply sticky top-0 z-30 border-b border-neutral-200/80 bg-white/80 backdrop-blur-xl supports-[backdrop-filter]:bg-white/70;
+  }
+
+  /** Hero — ultra-soft moving mesh (no shapes / no WebGL) */
+  .lms-hero-mesh {
+    background:
+      radial-gradient(ellipse 80% 52% at 70% 8%, rgb(61 122 140 / 0.09), transparent 52%),
+      radial-gradient(ellipse 60% 45% at 12% 72%, rgb(45 90 107 / 0.06), transparent 50%),
+      linear-gradient(115deg, rgb(248 250 251) 0%, rgb(255 255 255) 45%, rgb(240 249 251) 100%);
+    background-size: 100% 100%, 100% 100%, 200% 200%;
+    animation: lms-mesh-shift 28s ease-in-out infinite;
+  }
+
+  /** Floating UI cards — gentle vertical drift */
+  .lms-float-ui {
+    will-change: transform;
+  }
+  .lms-float-ui--1 {
+    animation: lms-float-y 16s ease-in-out infinite;
+  }
+  .lms-float-ui--2 {
+    animation: lms-float-y 19s ease-in-out infinite reverse;
+    animation-delay: -5s;
+  }
+  .lms-float-ui--3 {
+    animation: lms-float-y 14s ease-in-out infinite;
+    animation-delay: -3s;
   }
 }
 
+@keyframes lms-mesh-shift {
+  0%,
+  100% {
+    background-position: 0% 0%, 0% 0%, 0% 40%;
+  }
+  45% {
+    background-position: 6% 4%, -4% 2%, 100% 60%;
+  }
+  72% {
+    background-position: -3% -2%, 5% -3%, 50% 20%;
+  }
+}
+
+@keyframes lms-float-y {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-0.5deg);
+  }
+  50% {
+    transform: translateY(-16px) rotate(0.5deg);
+  }
+}

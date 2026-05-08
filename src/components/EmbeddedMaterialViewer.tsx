@@ -1,8 +1,16 @@
 import React, { useEffect } from 'react';
-import { ArrowLeft, ExternalLink, Info } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Info, Music } from 'lucide-react';
 import type { CourseItem, CourseSection } from '../types/course';
 import { PdfViewer, PdfViewerWithAuth } from './PdfViewer';
-import { getIframeVideoEmbedSrc, isDirectVideoFileUrl, shouldOpenVideoInModal } from '../utils/mediaUrl';
+import {
+  getIframeVideoEmbedSrc,
+  isDirectVideoFileUrl,
+  shouldOpenVideoInModal,
+  isDirectAudioFileUrl,
+  isOfficePresentationUrl,
+  getOfficeOnlineEmbedUrl,
+  isGoogleDriveUrl,
+} from '../utils/mediaUrl';
 
 function externalUrlForItem(item: CourseItem): string | null {
   if (item.type === 'video') return item.url.trim();
@@ -81,7 +89,12 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({ 
     if (ext) window.open(ext, '_blank', 'noopener,noreferrer');
   };
 
-  const isGenericWebLink = item.type === 'link' && ext && !shouldOpenVideoInModal(ext);
+  const isGenericWebLink =
+    item.type === 'link' &&
+    ext &&
+    !shouldOpenVideoInModal(ext) &&
+    !isDirectAudioFileUrl(ext) &&
+    !isOfficePresentationUrl(ext);
   const showToolbarOpenTab = ext && !isGenericWebLink;
 
   return (
@@ -176,6 +189,55 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({ 
               </div>
             );
           })()
+        ) : item.type === 'link' && ext && isDirectAudioFileUrl(ext) ? (
+          <div className="flex flex-col items-center gap-5 py-8 px-4">
+            <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-accent-teal/10 text-accent-teal">
+              <Music className="h-8 w-8" aria-hidden />
+            </span>
+            <p className="text-base font-semibold text-neutral-800">{item.title}</p>
+            <audio
+              controls
+              preload="metadata"
+              className="w-full max-w-lg"
+              src={ext}
+            >
+              Your browser does not support the audio element.
+            </audio>
+            <a
+              href={ext}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-accent-teal font-medium hover:underline flex items-center gap-1"
+            >
+              <ExternalLink className="h-3 w-3" aria-hidden />
+              Download audio file
+            </a>
+          </div>
+        ) : item.type === 'link' && ext && isOfficePresentationUrl(ext) && !isGoogleDriveUrl(ext) ? (
+          <div className="w-full rounded-lg overflow-hidden ring-1 ring-neutral-900/20">
+            <div className="bg-neutral-800 px-4 py-2 flex items-center justify-between">
+              <span className="text-xs font-medium text-neutral-300">{item.title}</span>
+              <a
+                href={ext}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-accent-teal hover:text-accent-teal/80 font-medium"
+              >
+                <ExternalLink className="h-3 w-3" aria-hidden />
+                Download
+              </a>
+            </div>
+            <iframe
+              title={item.title}
+              src={getOfficeOnlineEmbedUrl(ext)}
+              className="w-full border-0"
+              style={{ height: 'min(70vh, 640px)' }}
+              allow="fullscreen"
+            />
+            <p className="text-xs text-neutral-500 text-center py-2">
+              Powered by Microsoft Office Online · File must be publicly accessible
+            </p>
+          </div>
         ) : item.type === 'link' && ext ? (
           <ExternalResourceCard title={item.title} description={item.description} url={ext} />
         ) : (

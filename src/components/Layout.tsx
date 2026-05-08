@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
+import { messageService } from '../services/messageService';
 import {
   LogOut,
   Users,
@@ -25,10 +26,24 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
 
   useEffect(() => {
     setMobileNavOpen(false);
   }, [location.pathname]);
+
+  const refreshUnread = useCallback(async () => {
+    if (!user) return;
+    const count = await messageService.getUnreadCount();
+    setUnreadMessages(count);
+  }, [user]);
+
+  // Poll unread count: on mount, when path changes, and every 30 s
+  useEffect(() => {
+    refreshUnread();
+    const id = setInterval(refreshUnread, 30_000);
+    return () => clearInterval(id);
+  }, [refreshUnread, location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -107,6 +122,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {navigation.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.path);
+            const isMessages = item.name === 'Messages';
+            const badge = isMessages && unreadMessages > 0 ? unreadMessages : 0;
             return (
               <button
                 key={item.path}
@@ -120,7 +137,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 ].join(' ')}
               >
                 <Icon className={`h-5 w-5 shrink-0 ${active ? 'text-accent-teal' : 'text-neutral-400'}`} />
-                <span className="truncate">{item.name}</span>
+                <span className="truncate flex-1">{item.name}</span>
+                {badge > 0 && (
+                  <span className="ml-auto inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white tabular-nums">
+                    {badge > 99 ? '99+' : badge}
+                  </span>
+                )}
               </button>
             );
           })}

@@ -41,6 +41,19 @@ export const studentsService = {
     const response = await api.delete<ApiResponse<void>>(`/students/${id}`);
     assertApiOk(response, 'Could not delete the student.');
   },
+
+  async importBulk(rows: CreateStudentData[]): Promise<{
+    created: number;
+    skipped: number;
+    results: Array<{ row: number; status: 'created' | 'skipped'; name: string; email: string; reason?: string }>;
+  }> {
+    const response = await api.post<ApiResponse<{
+      created: number;
+      skipped: number;
+      results: Array<{ row: number; status: 'created' | 'skipped'; name: string; email: string; reason?: string }>;
+    }>>('/students/import', { students: rows });
+    return assertApiSuccess(response, 'Import failed.');
+  },
 };
 
 

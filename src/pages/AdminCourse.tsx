@@ -14,11 +14,17 @@ import {
   Loader2,
   GripVertical,
   Upload,
+  Download,
+  Eye,
+  FileSpreadsheet,
+  X,
+  AlertCircle,
 } from 'lucide-react';
 import { documentsService } from '../services/documentsService';
 import { getErrorMessage } from '../utils/apiError';
 import { useAuth } from '../context/useAuth';
 import { AdminCoursePageSkeleton } from '../components/PageSkeletons';
+import { AdminCoursePreview } from '../components/AdminCoursePreview';
 
 type ItemDraft = {
   tempId: string;
@@ -70,6 +76,147 @@ const ADMIN_COURSE_STORAGE_KEY = 'lms:adminCourseEditor:';
 
 type AdminCourseStored = { mode: 'list' | 'new' | 'edit'; courseId?: string };
 
+const CSV_TEMPLATE_HEADER = 'week,section,objective,outcome,type,title,url,information';
+const CSV_TEMPLATE_ROWS = [
+  'Week 1,Introduction,Understand the core concepts,,video,Module Overview,https://www.youtube.com/watch?v=EXAMPLE,Watch this before continuing',
+  'Week 1,Introduction,,,link,Supporting article,https://example.com/article,',
+  'Week 1,Introduction,,,pdf,Reading material,,https://example.com/reading.pdf',
+  'Week 2,Deep Dive,Apply knowledge in practice,Can build a working example,video,Hands-on Tutorial,https://www.youtube.com/watch?v=EXAMPLE2,',
+];
+const CSV_TEMPLATE = [CSV_TEMPLATE_HEADER, ...CSV_TEMPLATE_ROWS].join('\n');
+
+function downloadCourseTemplate() {
+  const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'course-template.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportCourseToCSV(courseTitle: string, weeks: WeekDraft[]): void {
+  const rows: string[] = [CSV_TEMPLATE_HEADER];
+  for (const week of weeks) {
+    for (const sec of week.sections) {
+      if (sec.items.length === 0) {
+        rows.push(csvRow([week.title, sec.title, sec.objective, sec.outcome, '', '', '', '']));
+      } else {
+        for (const it of sec.items) {
+          const url = it.type !== 'pdf' ? (it.url || '') : (it.fileUrl || '');
+          rows.push(csvRow([week.title, sec.title, sec.objective, sec.outcome, it.type, it.title, url, it.information || '']));
+        }
+      }
+    }
+  }
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `${courseTitle.trim().replace(/\s+/g, '-').toLowerCase() || 'course'}-export.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function csvRow(fields: string[]): string {
+  return fields.map((f) => `"${(f ?? '').replace(/"/g, '""')}"`).join(',');
+}
+
+type ParsedCSVResult = {
+  weeks: WeekDraft[];
+  errors: string[];
+};
+
+function parseImportCSV(raw: string): ParsedCSVResult {
+  const errors: string[] = [];
+  const lines = raw.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) return { weeks: [], errors: ['CSV is empty or has no data rows.'] };
+
+  const header = parseCSVLine(lines[0]).map((h) => h.toLowerCase().trim());
+  const weekIdx = header.indexOf('week');
+  const secIdx = header.indexOf('section');
+  const objIdx = header.indexOf('objective');
+  const outIdx = header.indexOf('outcome');
+  const typeIdx = header.indexOf('type');
+  const titleIdx = header.indexOf('title');
+  const urlIdx = header.indexOf('url');
+  const infoIdx = header.indexOf('information');
+
+  if (weekIdx < 0 || secIdx < 0) {
+    return { weeks: [], errors: ['CSV must have "week" and "section" columns.'] };
+  }
+
+  // ordered map: weekTitle → sectionTitle → draft
+  const weekMap = new Map<string, { draft: WeekDraft; secMap: Map<string, SectionDraft> }>();
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseCSVLine(lines[i]);
+    const weekTitle = (cols[weekIdx] ?? '').trim();
+    const secTitle = (cols[secIdx] ?? '').trim();
+    if (!weekTitle && !secTitle) continue;
+
+    if (!weekMap.has(weekTitle)) {
+      weekMap.set(weekTitle, {
+        draft: { tempId: newTempId(), title: weekTitle || `Week ${weekMap.size + 1}`, order: weekMap.size + 1, sections: [] },
+        secMap: new Map(),
+      });
+    }
+
+    const { draft: weekDraft, secMap } = weekMap.get(weekTitle)!;
+
+    if (!secMap.has(secTitle)) {
+      const secDraft: SectionDraft = {
+        tempId: newTempId(),
+        title: secTitle,
+        objective: objIdx >= 0 ? (cols[objIdx] ?? '').trim() : '',
+        outcome: outIdx >= 0 ? (cols[outIdx] ?? '').trim() : '',
+        items: [],
+      };
+      secMap.set(secTitle, secDraft);
+      weekDraft.sections.push(secDraft);
+    }
+
+    const secDraft = secMap.get(secTitle)!;
+    const itemType = typeIdx >= 0 ? (cols[typeIdx] ?? '').trim().toLowerCase() : '';
+    const itemTitle = titleIdx >= 0 ? (cols[titleIdx] ?? '').trim() : '';
+    const itemUrl = urlIdx >= 0 ? (cols[urlIdx] ?? '').trim() : '';
+    const itemInfo = infoIdx >= 0 ? (cols[infoIdx] ?? '').trim() : '';
+
+    if (itemTitle && (itemType === 'video' || itemType === 'link' || itemType === 'pdf')) {
+      const order = secDraft.items.length + 1;
+      if (itemType === 'pdf') {
+        secDraft.items.push({ tempId: newTempId(), type: 'pdf', title: itemTitle, order, fileUrl: itemUrl || undefined, information: itemInfo });
+      } else {
+        secDraft.items.push({ tempId: newTempId(), type: itemType as 'video' | 'link', title: itemTitle, url: itemUrl, order, information: itemInfo });
+      }
+    } else if (itemTitle && itemType) {
+      errors.push(`Row ${i + 1}: unknown type "${itemType}" — use video, link, or pdf.`);
+    }
+  }
+
+  const weeks = [...weekMap.values()].map((v) => v.draft);
+  return { weeks, errors };
+}
+
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (ch === '"') { inQuotes = false; }
+      else { cur += ch; }
+    } else {
+      if (ch === '"') { inQuotes = true; }
+      else if (ch === ',') { result.push(cur); cur = ''; }
+      else { cur += ch; }
+    }
+  }
+  result.push(cur);
+  return result;
+}
+
 function readAdminCourseStored(userId: string | undefined): AdminCourseStored | null {
   try {
     const raw = localStorage.getItem(ADMIN_COURSE_STORAGE_KEY + (userId ?? 'anon'));
@@ -109,6 +256,16 @@ const AdminCourse: React.FC = () => {
   const [docCategories, setDocCategories] = useState<string[]>([]);
   const [pdfUploadingItemTempId, setPdfUploadingItemTempId] = useState<string | null>(null);
 
+  // CSV import state
+  const [importOpen, setImportOpen] = useState(false);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [importParsed, setImportParsed] = useState<WeekDraft[] | null>(null);
+  const [importFileName, setImportFileName] = useState('');
+  const csvInputRef = useRef<HTMLInputElement>(null);
+
+  // Preview state
+  const [previewCourse, setPreviewCourse] = useState<Course | null>(null);
+
   const loadCourses = useCallback((opts?: { silent?: boolean }) => {
     const silent = opts?.silent ?? false;
     if (!silent) setCoursesLoading(true);
@@ -143,6 +300,30 @@ const AdminCourse: React.FC = () => {
       })
       .catch(() => {});
   }, []);
+
+  const handleCSVFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = (ev.target?.result as string) ?? '';
+      const { weeks: parsed, errors } = parseImportCSV(text);
+      setImportParsed(parsed.length > 0 ? parsed : null);
+      setImportErrors(errors);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const applyCSVImport = () => {
+    if (!importParsed) return;
+    setWeeks(importParsed);
+    setImportOpen(false);
+    setImportParsed(null);
+    setImportErrors([]);
+    setImportFileName('');
+  };
 
   const handlePdfUploadForItem = async (
     weekTempId: string,
@@ -525,10 +706,16 @@ const AdminCourse: React.FC = () => {
 
       {!showForm ? (
         <>
-          <Button className="mb-6" onClick={openNewCourseForm}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create course
-          </Button>
+          <div className="flex flex-wrap gap-3 mb-6">
+            <Button onClick={openNewCourseForm}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create course
+            </Button>
+            <Button variant="outline" onClick={downloadCourseTemplate}>
+              <Download className="h-4 w-4 mr-2" />
+              Download CSV template
+            </Button>
+          </div>
           <div className="space-y-4">
             {courses.map((c) => {
               const courseWeeks = getCourseWeeks(c);
@@ -544,7 +731,11 @@ const AdminCourse: React.FC = () => {
                         {courseWeeks.length} week{courseWeeks.length !== 1 ? 's' : ''}, {sectionCount} section{sectionCount !== 1 ? 's' : ''}
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
+                      <Button variant="outline" size="sm" onClick={() => setPreviewCourse(c)}>
+                        <Eye className="h-4 w-4 mr-1" />
+                        Preview
+                      </Button>
                       <Button variant="outline" size="sm" onClick={() => openEditCourseWithUrl(c)}>
                         <Pencil className="h-4 w-4 mr-1" />
                         Edit
@@ -562,14 +753,26 @@ const AdminCourse: React.FC = () => {
       ) : (
         <Card className="mb-6">
           <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
               <h2 className="text-xl font-semibold text-neutral-800">
                 {editingId ? 'Edit course' : 'New course'}
               </h2>
-              <Button variant="outline" size="sm" onClick={resetToCourseList}>
-                <ArrowLeft className="h-4 w-4 mr-1" />
-                Cancel
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={() => { setImportOpen(true); setImportParsed(null); setImportErrors([]); setImportFileName(''); }}>
+                  <FileSpreadsheet className="h-4 w-4 mr-1" />
+                  Import CSV
+                </Button>
+                {weeks.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={() => exportCourseToCSV(courseTitle, weeks)}>
+                    <Download className="h-4 w-4 mr-1" />
+                    Export CSV
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={resetToCourseList}>
+                  <ArrowLeft className="h-4 w-4 mr-1" />
+                  Cancel
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-6">
@@ -770,6 +973,82 @@ const AdminCourse: React.FC = () => {
             </div>
           </CardContent>
         </Card>
+      )}
+      {/* CSV Import Modal */}
+      {importOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setImportOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-neutral-800">Import course structure from CSV</h3>
+              <button type="button" onClick={() => setImportOpen(false)} className="rounded-lg p-1.5 hover:bg-neutral-100 text-neutral-500">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="text-sm text-neutral-600 leading-relaxed">
+              Upload a CSV with columns: <code className="bg-neutral-100 px-1 rounded text-xs">week, section, objective, outcome, type, title, url, information</code>.
+              Each row = one content item. Rows with the same week + section are grouped together.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Button variant="outline" size="sm" onClick={downloadCourseTemplate}>
+                <Download className="h-4 w-4 mr-1" />
+                Download template
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => csvInputRef.current?.click()}
+              >
+                <Upload className="h-4 w-4 mr-1" />
+                {importFileName ? importFileName : 'Choose CSV file'}
+              </Button>
+              <input
+                ref={csvInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={handleCSVFileChange}
+              />
+            </div>
+
+            {importErrors.length > 0 && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 space-y-1">
+                <div className="flex items-center gap-2 text-amber-700 font-medium text-sm">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  Parse warnings
+                </div>
+                {importErrors.map((err, i) => (
+                  <p key={i} className="text-xs text-amber-700 pl-6">{err}</p>
+                ))}
+              </div>
+            )}
+
+            {importParsed && (
+              <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-800 space-y-1">
+                <p className="font-semibold">Preview: {importParsed.length} week{importParsed.length !== 1 ? 's' : ''} parsed</p>
+                {importParsed.map((w) => (
+                  <p key={w.tempId} className="text-xs pl-2">
+                    <span className="font-medium">{w.title}</span>
+                    {' · '}{w.sections.length} section{w.sections.length !== 1 ? 's' : ''}
+                    {' · '}{w.sections.reduce((n, s) => n + s.items.length, 0)} items
+                  </p>
+                ))}
+                <p className="text-xs text-green-700 pt-1">This will <strong>replace</strong> the current week/section structure (course title and code stay the same).</p>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <Button onClick={applyCSVImport} disabled={!importParsed}>
+                Apply import
+              </Button>
+              <Button variant="outline" onClick={() => setImportOpen(false)}>Cancel</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Course Preview */}
+      {previewCourse && (
+        <AdminCoursePreview course={previewCourse} onClose={() => setPreviewCourse(null)} />
       )}
     </div>
   );

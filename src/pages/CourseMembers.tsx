@@ -1,14 +1,18 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { courseService } from '../services/courseService';
 import { userDirectoryService } from '../services/userDirectoryService';
 import { usersService, UserDirectoryItem } from '../services/usersService';
+import { inviteService, type InviteResult, type PendingInvite } from '../services/inviteService';
 import type { Course } from '../types/course';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
-import { Users, MessageCircle, Plus, Trash2, KeyRound, Info, Loader2, GraduationCap } from 'lucide-react';
+import {
+  Users, MessageCircle, Plus, Trash2, KeyRound, Info, Loader2, GraduationCap,
+  Mail, Upload, Download, CheckCircle2, AlertCircle, Clock, X,
+} from 'lucide-react';
 import { getErrorMessage } from '../utils/apiError';
 
 type Member = { id: string; name: string; email: string };
@@ -36,6 +40,15 @@ const CourseMembers: React.FC = () => {
   const [editingCodesName, setEditingCodesName] = useState('');
   const [draftCourseCodes, setDraftCourseCodes] = useState<string[]>([]);
   const [savingCodes, setSavingCodes] = useState(false);
+
+  // Bulk invite state
+  const [inviteCourseId, setInviteCourseId] = useState<string | null>(null);
+  const [inviteText, setInviteText] = useState('');
+  const [inviting, setInviting] = useState(false);
+  const [inviteResult, setInviteResult] = useState<InviteResult | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [pendingInvitesByCourse, setPendingInvitesByCourse] = useState<Record<string, PendingInvite[]>>({});
+  const csvFileRef = useRef<HTMLInputElement>(null);
 
   const loadCourses = useCallback(async () => {
     try {
@@ -148,6 +161,69 @@ const CourseMembers: React.FC = () => {
     }
   };
 
+  const loadPendingInvites = useCallback(async (courseId: string) => {
+    if (!isAdmin) return;
+    try {
+      const invites = await inviteService.getPendingInvites(courseId);
+      setPendingInvitesByCourse((prev) => ({ ...prev, [courseId]: invites }));
+    } catch {
+      // ignore
+    }
+  }, [isAdmin]);
+
+  const openInviteModal = (courseId: string) => {
+    setInviteCourseId(courseId);
+    setInviteText('');
+    setInviteResult(null);
+    setInviteError(null);
+    loadPendingInvites(courseId);
+  };
+
+  const handleCSVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const emails = await inviteService.parseCSVFile(file);
+    setInviteText((prev) => {
+      const existing = inviteService.parseEmailsFromText(prev);
+      const merged = [...new Set([...existing, ...emails])];
+      return merged.join('\n');
+    });
+    if (csvFileRef.current) csvFileRef.current.value = '';
+  };
+
+  const handleBulkInvite = async () => {
+    if (!inviteCourseId || !inviteText.trim()) return;
+    const emails = inviteService.parseEmailsFromText(inviteText);
+    if (emails.length === 0) {
+      setInviteError('No valid email addresses found.');
+      return;
+    }
+    setInviting(true);
+    setInviteResult(null);
+    setInviteError(null);
+    try {
+      const result = await inviteService.bulkInvite(inviteCourseId, emails);
+      setInviteResult(result);
+      setInviteText('');
+      // Reload members + invites
+      await loadMembersForCourse(inviteCourseId);
+      await loadPendingInvites(inviteCourseId);
+    } catch (e) {
+      setInviteError(getErrorMessage(e, 'Could not process the invite list.'));
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const revokeInvite = async (courseId: string, inviteId: string) => {
+    try {
+      await inviteService.revokeInvite(courseId, inviteId);
+      await loadPendingInvites(courseId);
+    } catch {
+      // ignore
+    }
+  };
+
   const basePath = user?.role === 'admin' ? '/admin' : '/student';
 
   return (
@@ -218,14 +294,25 @@ const CourseMembers: React.FC = () => {
                       </div>
                     </div>
                     {isAdmin && (
-                      <Button
-                        variant={isManaging ? 'primary' : 'outline'}
-                        size="sm"
-                        className="shrink-0"
-                        onClick={() => setManagingCourseId(isManaging ? null : course.id)}
-                      >
-                        {isManaging ? 'Done adding' : 'Manage members'}
-                      </Button>
+                      <div className="flex gap-2 flex-wrap">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0"
+                          onClick={() => openInviteModal(course.id)}
+                        >
+                          <Mail className="h-3.5 w-3.5 mr-1" />
+                          Invite / CSV
+                        </Button>
+                        <Button
+                          variant={isManaging ? 'primary' : 'outline'}
+                          size="sm"
+                          className="shrink-0"
+                          onClick={() => setManagingCourseId(isManaging ? null : course.id)}
+                        >
+                          {isManaging ? 'Done adding' : 'Manage members'}
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -267,10 +354,36 @@ const CourseMembers: React.FC = () => {
                       Everyone in the directory is already in this course, or there are no other users to add.
                     </p>
                   ) : null}
+
+                  {/* Pending invitations badge */}
+                  {isAdmin && (pendingInvitesByCourse[course.id] ?? []).length > 0 && (
+                    <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 px-4 py-3 space-y-2">
+                      <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide flex items-center gap-1.5">
+                        <Clock className="h-3.5 w-3.5" />
+                        Pending invitations ({pendingInvitesByCourse[course.id].length})
+                      </p>
+                      <ul className="space-y-1">
+                        {pendingInvitesByCourse[course.id].map((inv) => (
+                          <li key={inv.id} className="flex items-center justify-between gap-2 text-sm text-amber-900">
+                            <span className="truncate">{inv.email}</span>
+                            <button
+                              type="button"
+                              onClick={() => revokeInvite(course.id, inv.id)}
+                              className="shrink-0 p-0.5 rounded hover:bg-amber-200/60 text-amber-700"
+                              title="Revoke invite"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   {members.length === 0 ? (
                     <p className="text-sm text-neutral-600 rounded-lg border border-dashed border-neutral-300/90 bg-neutral-50/50 px-4 py-6 text-center">
                       No members yet.
-                      {isAdmin ? ' Use “Manage members” to add people from the directory.' : ''}
+                      {isAdmin ? ' Use the Invite / CSV button to add people.' : ''}
                     </p>
                   ) : (
                     <ul className="space-y-2">
@@ -397,6 +510,131 @@ const CourseMembers: React.FC = () => {
             <Button onClick={saveCourseCodes} disabled={savingCodes}>
               {savingCodes ? 'Saving…' : 'Save access'}
             </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Bulk invite / CSV modal */}
+      <Modal
+        isOpen={!!inviteCourseId}
+        onClose={() => { setInviteCourseId(null); setInviteResult(null); setInviteError(null); }}
+        title="Invite members"
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg border border-sky-200/70 bg-sky-50/50 px-3 py-3 text-sm text-neutral-700 leading-relaxed">
+            <p className="font-medium text-neutral-800 mb-1 flex items-center gap-1.5">
+              <Mail className="h-4 w-4 text-accent-teal" />
+              Enroll by email
+            </p>
+            <p>
+              Enter email addresses separated by commas or new lines. Existing accounts are enrolled immediately.
+              New emails receive an invitation to sign up — they'll be auto-enrolled when they register.
+            </p>
+          </div>
+
+          {/* Text area */}
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">
+              Email addresses
+            </label>
+            <textarea
+              rows={5}
+              className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm text-neutral-800 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-accent-teal/30 focus:border-accent-teal/50"
+              placeholder={"alice@example.com\nbob@example.com, charlie@example.com"}
+              value={inviteText}
+              onChange={(e) => setInviteText(e.target.value)}
+            />
+          </div>
+
+          {/* CSV upload + template */}
+          <div className="flex flex-wrap gap-2">
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              ref={csvFileRef}
+              className="hidden"
+              onChange={handleCSVUpload}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => csvFileRef.current?.click()}
+            >
+              <Upload className="h-3.5 w-3.5 mr-1" />
+              Upload CSV
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => inviteService.downloadTemplate()}
+            >
+              <Download className="h-3.5 w-3.5 mr-1" />
+              Download CSV template
+            </Button>
+          </div>
+          <p className="text-xs text-neutral-500">
+            CSV format: <code className="bg-neutral-100 px-1 rounded">Name,Email</code> — one row per person. The Email column is required.
+          </p>
+
+          {/* Error */}
+          {inviteError && (
+            <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>{inviteError}</span>
+            </div>
+          )}
+
+          {/* Result */}
+          {inviteResult && (
+            <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 space-y-1 text-sm">
+              <p className="font-semibold text-green-800 flex items-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4" />
+                Done!
+              </p>
+              {inviteResult.enrolled.length > 0 && (
+                <p className="text-green-700">
+                  ✓ Enrolled immediately ({inviteResult.enrolled.length}): {inviteResult.enrolled.join(', ')}
+                </p>
+              )}
+              {inviteResult.invited.length > 0 && (
+                <p className="text-amber-700">
+                  ✉ Invitation sent ({inviteResult.invited.length}): {inviteResult.invited.join(', ')}
+                </p>
+              )}
+              {inviteResult.alreadyEnrolled.length > 0 && (
+                <p className="text-neutral-500">
+                  Already enrolled / invited ({inviteResult.alreadyEnrolled.length}): {inviteResult.alreadyEnrolled.join(', ')}
+                </p>
+              )}
+              {inviteResult.errors.length > 0 && (
+                <p className="text-red-600">
+                  Failed ({inviteResult.errors.length}): {inviteResult.errors.join(', ')}
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-neutral-200/80">
+            <Button
+              variant="outline"
+              onClick={() => { setInviteCourseId(null); setInviteResult(null); setInviteError(null); }}
+            >
+              {inviteResult ? 'Close' : 'Cancel'}
+            </Button>
+            {!inviteResult && (
+              <Button
+                onClick={handleBulkInvite}
+                disabled={inviting || !inviteText.trim()}
+              >
+                {inviting ? (
+                  <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Processing…</>
+                ) : (
+                  <><Mail className="h-4 w-4 mr-1.5" />Send invitations</>
+                )}
+              </Button>
+            )}
           </div>
         </div>
       </Modal>

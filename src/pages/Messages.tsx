@@ -106,6 +106,7 @@ const Messages: React.FC = () => {
       setSelectedConversation(conv);
       setMessages(msgs);
       setShowNewConversation(false);
+      messageService.markConversationRead(conv.id);
     } catch (e) {
       setActionError(getErrorMessage(e, 'Could not open that conversation.'));
     } finally {
@@ -155,6 +156,7 @@ const Messages: React.FC = () => {
   const openConversation = (conv: Conversation) => {
     setSelectedConversation(conv);
     setShowNewConversation(false);
+    messageService.markConversationRead(conv.id);
   };
 
   const startConversationWith = (otherUserId: string, otherUserName: string) => {
@@ -171,6 +173,7 @@ const Messages: React.FC = () => {
       const msgs = await messageService.getMessages(selectedConversation.id);
       setMessages(msgs);
       setNewMessageBody('');
+      messageService.markConversationRead(selectedConversation.id);
       await refreshConversations();
     } catch (e) {
       setActionError(getErrorMessage(e, 'Could not send your message.'));

@@ -24,6 +24,7 @@ import {
   Target,
 } from 'lucide-react';
 import { DashboardPageSkeleton } from '../components/PageSkeletons';
+import { AnnouncementsPanel } from '../components/AnnouncementsPanel';
 
 function greetingForHour(h: number): string {
   if (h < 12) return 'Good morning';
@@ -312,6 +313,8 @@ const StudentDashboard: React.FC = () => {
           </p>
         ) : null}
       </section>
+
+      <AnnouncementsPanel isAdmin={false} />
 
       {/* Recent submissions */}
       <Card className="shadow-updraft overflow-hidden ring-1 ring-neutral-900/[0.04]">

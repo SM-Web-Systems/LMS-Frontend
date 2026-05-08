@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'r
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/useAuth';
 import { DataProvider } from './context/DataContext';
+import { ThemeProvider } from './context/ThemeContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import SignUp from './pages/SignUp';
@@ -104,6 +105,7 @@ const SignUpRoute: React.FC = () => {
 
 function App() {
   return (
+    <ThemeProvider>
     <Router>
       <ToastProvider>
         <AuthProvider>
@@ -333,6 +335,7 @@ function App() {
         </AuthProvider>
       </ToastProvider>
     </Router>
+    </ThemeProvider>
   );
 }
 

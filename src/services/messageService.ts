@@ -43,6 +43,23 @@ export const messageService = {
     return assertApiSuccess(res, 'Could not send your message.');
   },
 
+  async getUnreadCount(): Promise<number> {
+    try {
+      const res = await api.get<ApiResponse<{ count: number }>>('/messages/unread-count');
+      return res.data?.data?.count ?? 0;
+    } catch {
+      return 0;
+    }
+  },
+
+  async markConversationRead(conversationId: string): Promise<void> {
+    try {
+      await api.post(`/messages/conversations/${conversationId}/read`, {});
+    } catch {
+      // best-effort
+    }
+  },
+
   generateId(): string {
     return Date.now().toString(36) + Math.random().toString(36).slice(2);
   },
