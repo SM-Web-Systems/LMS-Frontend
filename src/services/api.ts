@@ -29,6 +29,10 @@ export async function getAuthToken(): Promise<string | null> {
 }
 
 api.interceptors.request.use(async (config) => {
+  // Let the runtime set multipart boundary; default JSON Content-Type breaks FormData uploads
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    delete config.headers['Content-Type'];
+  }
   if (tokenGetter) {
     try {
       const token = await tokenGetter();

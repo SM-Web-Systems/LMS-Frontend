@@ -118,3 +118,30 @@ export function AdminCoursePageSkeleton() {
     </div>
   );
 }
+
+/** Course members: hero, stat tiles, course grid, roster block. */
+export function CourseMembersPageSkeleton() {
+  return (
+    <div className="pb-10 space-y-8" aria-busy="true" aria-label="Loading course members">
+      <div className={`rounded-2xl border border-neutral-200/90 bg-neutral-50/50 h-[min(220px,32vh)] ${pulse}`} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="rounded-xl border border-neutral-200/80 bg-white p-5 shadow-sm">
+            <div className={`h-12 w-12 rounded-xl ${pulse} mb-3`} />
+            <div className={`h-4 w-28 ${pulse} mb-2`} />
+            <div className={`h-8 w-14 ${pulse}`} />
+          </div>
+        ))}
+      </div>
+      <div>
+        <div className={`h-5 w-36 ${pulse} mb-4`} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className={`h-24 rounded-xl border border-neutral-200/80 ${pulse}`} />
+          ))}
+        </div>
+      </div>
+      <div className={`rounded-xl border border-neutral-200/80 min-h-[280px] ${pulse}`} />
+    </div>
+  );
+}

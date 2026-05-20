@@ -57,8 +57,7 @@ export const profileService = {
     formData.append('avatar', file);
     const res = await api.post<{ success: boolean; data: { avatarUrl: string } }>(
       '/profile/avatar',
-      formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
+      formData
     );
     return res.data?.data?.avatarUrl ?? null;
   },

@@ -26,6 +26,37 @@
   --border-medium: #d1d9dd;
   --font-geist-sans: system-ui, -apple-system, sans-serif;
   --font-geist-mono: ui-monospace, monospace;
+
+  /*
+   * Tailwind theme colors use rgb(var(--c-*) / α) — values must be space-separated R G B.
+   * Without these, bg-primary-*, text-accent-teal, etc. resolve to invalid colors (washed-out UI).
+   */
+  --c-primary: 45 90 107;
+  --c-primary-dark: 27 58 75;
+  --c-primary-medium: 45 90 107;
+  --c-primary-light: 74 124 140;
+  --c-primary-50: 240 249 251;
+  --c-primary-100: 224 242 246;
+  --c-primary-200: 200 230 238;
+  --c-primary-300: 160 210 220;
+  --c-primary-400: 120 180 195;
+  --c-primary-500: 90 150 170;
+  --c-primary-600: 61 122 140;
+  --c-primary-700: 45 90 107;
+  --c-primary-800: 35 70 85;
+  --c-primary-900: 27 58 75;
+  --c-accent-teal: 61 122 140;
+  --c-accent-teal-hover: 45 106 124;
+  --c-neutral-50: 248 250 251;
+  --c-neutral-100: 241 245 247;
+  --c-neutral-200: 229 234 237;
+  --c-neutral-300: 209 217 221;
+  --c-neutral-400: 155 168 174;
+  --c-neutral-500: 107 123 130;
+  --c-neutral-600: 74 90 98;
+  --c-neutral-700: 55 73 82;
+  --c-neutral-800: 31 46 53;
+  --c-neutral-900: 15 26 31;
 }
 
 @layer base {
