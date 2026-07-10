@@ -1,11 +1,16 @@
 // User Types
 export type UserRole = 'student' | 'admin';
 
+/** 'full' = invited student / admin; 'preview' = read-only public visitor. */
+export type AccessLevel = 'full' | 'preview';
+
 export interface User {
   id: string;
   name: string;
   email: string;
   role: UserRole;
+  /** Read-only public preview vs full access. Defaults to 'full' when absent. */
+  accessLevel?: AccessLevel;
   /** Course codes the user can access (students). When backend supports this, include in auth/me. */
   courseCodes?: string[];
 }

@@ -90,8 +90,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   // Embedded (inside the marketing site under /learn): drop our own nav rail and
   // header so the LMS reads as part of the host page — just render the content.
   if (embedded) {
+    const isPreview = user?.accessLevel === 'preview';
     return (
       <div className="min-h-screen bg-neutral-50">
+        {isPreview && (
+          <div className="bg-accent-teal/10 border-b border-accent-teal/20 px-4 py-2.5 text-center text-sm text-primary-dark">
+            You&apos;re viewing a read-only course preview. Invited students get the full
+            workspace — submissions, quizzes, and messaging.
+          </div>
+        )}
         <main className="p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
     );
