@@ -25,6 +25,12 @@ import AdminQuizzes from './pages/AdminQuizzes';
 import StudentQuizzes from './pages/StudentQuizzes';
 import { Loader2 } from 'lucide-react';
 import { ToastProvider } from './components/ToastProvider';
+import { isEmbedded, routerBasename } from './utils/embed';
+
+/** Where a signed-in student lands. Embedded visitors go straight to the course. */
+function studentHome(): string {
+  return isEmbedded() ? '/student/course' : '/student';
+}
 
 const LoadingScreen: React.FC = () => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -50,7 +56,7 @@ const ProtectedRoute: React.FC<{
   }
 
   if (allowedRole && user?.role !== allowedRole) {
-    return <Navigate to={user?.role === 'admin' ? '/admin' : '/student'} replace />;
+    return <Navigate to={user?.role === 'admin' ? '/admin' : studentHome()} replace />;
   }
 
   return <>{children}</>;
@@ -62,7 +68,7 @@ const HomeRoute: React.FC = () => {
 
   useEffect(() => {
     if (!isLoading && isAuthenticated && user) {
-      navigate(user.role === 'admin' ? '/admin' : '/student', { replace: true });
+      navigate(user.role === 'admin' ? '/admin' : studentHome(), { replace: true });
     }
   }, [isAuthenticated, user, navigate, isLoading]);
 
@@ -83,7 +89,7 @@ const LoginRoute: React.FC = () => {
   }
 
   if (isAuthenticated && user) {
-    return <Navigate to={user.role === 'admin' ? '/admin' : '/student'} replace />;
+    return <Navigate to={user.role === 'admin' ? '/admin' : studentHome()} replace />;
   }
 
   return <Login />;
@@ -97,7 +103,7 @@ const SignUpRoute: React.FC = () => {
   }
 
   if (isAuthenticated && user) {
-    return <Navigate to={user.role === 'admin' ? '/admin' : '/student'} replace />;
+    return <Navigate to={user.role === 'admin' ? '/admin' : studentHome()} replace />;
   }
 
   return <SignUp />;
@@ -106,7 +112,7 @@ const SignUpRoute: React.FC = () => {
 function App() {
   return (
     <ThemeProvider>
-    <Router>
+    <Router basename={routerBasename()}>
       <ToastProvider>
         <AuthProvider>
           <DataProvider>

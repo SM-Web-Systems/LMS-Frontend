@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 
 import { LawyeredFloatDecor } from '@/components/landing/LawyeredFloatDecor';
+import { assetUrl } from '@/utils/embed';
 
 const LEARNING_PATHS = [
   {
@@ -96,7 +97,7 @@ const Landing: React.FC = () => {
               to="/"
               className="flex items-center gap-2.5 sm:gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal focus-visible:ring-offset-2 rounded-lg"
             >
-              <img src="/logo.png" alt="" className="w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-lg ring-1 ring-neutral-200" />
+              <img src={assetUrl('logo.png')} alt="" className="w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-lg ring-1 ring-neutral-200" />
               <div>
                 <span className="text-base sm:text-lg font-bold text-neutral-900 block leading-tight tracking-tight">
                   SM Web Systems
@@ -346,7 +347,7 @@ const Landing: React.FC = () => {
       <footer className="py-10 px-4 bg-neutral-50 border-t border-neutral-200 text-neutral-600">
         <div className="max-w-8xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-8 text-sm">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="" className="w-8 h-8 rounded-lg ring-1 ring-neutral-200" />
+            <img src={assetUrl('logo.png')} alt="" className="w-8 h-8 rounded-lg ring-1 ring-neutral-200" />
             <div>
               <span className="font-semibold text-neutral-900 block">SM Web Systems</span>
               <span className="text-neutral-500">Learning Management System</span>

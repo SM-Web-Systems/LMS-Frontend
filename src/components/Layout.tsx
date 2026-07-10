@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { messageService } from '../services/messageService';
+import { assetUrl, isEmbedded } from '../utils/embed';
 import {
   LogOut,
   Users,
@@ -25,6 +26,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const embedded = isEmbedded();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
 
@@ -38,12 +40,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     setUnreadMessages(count);
   }, [user]);
 
-  // Poll unread count: on mount, when path changes, and every 30 s
+  // Poll unread count: on mount, when path changes, and every 30 s.
+  // Skipped in embed mode (no messaging chrome; preview users have no inbox).
   useEffect(() => {
+    if (embedded) return;
     refreshUnread();
     const id = setInterval(refreshUnread, 30_000);
     return () => clearInterval(id);
-  }, [refreshUnread, location.pathname]);
+  }, [embedded, refreshUnread, location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -83,6 +87,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           { name: 'Profile', path: '/student/profile', icon: User },
         ];
 
+  // Embedded (inside the marketing site under /learn): drop our own nav rail and
+  // header so the LMS reads as part of the host page — just render the content.
+  if (embedded) {
+    return (
+      <div className="min-h-screen bg-neutral-50">
+        <main className="p-4 sm:p-6 lg:p-8">{children}</main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-neutral-50 flex">
       {mobileNavOpen && (
@@ -103,7 +117,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         ].join(' ')}
       >
         <div className="p-4 border-b border-neutral-200/80 flex items-center gap-3 min-h-[4rem]">
-          <img src="/logo.png" alt="SM Web Systems" className="h-9 w-9 shrink-0" />
+          <img src={assetUrl('logo.png')} alt="SM Web Systems" className="h-9 w-9 shrink-0" />
           <div className="min-w-0">
             <p className="text-sm font-bold text-primary-dark leading-tight truncate">SM Web Systems</p>
             <p className="text-[11px] text-neutral-500 truncate">Learning Management</p>

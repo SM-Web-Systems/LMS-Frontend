@@ -18,8 +18,14 @@ const allowedHosts = [
   ...extraAllowedHosts,
 ]
 
+// Base path the app is served under. Set VITE_BASE_PATH=/learn/ when the app is
+// reverse-proxied into the marketing site (smwebsystems.com/learn); defaults to
+// root for the standalone lms.smwebsystems.com deployment.
+const basePath = process.env.VITE_BASE_PATH || '/'
+
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: basePath,
   plugins: [react()],
   resolve: {
     alias: {
